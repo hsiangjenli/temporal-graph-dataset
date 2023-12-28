@@ -1,0 +1,29 @@
+[enron]
+    name = "enron"
+    src = "zenodo"
+    href = "https://zenodo.org/records/7213796/files/enron.zip"
+
+[USLegis]
+    name = "USLegis"
+    src = "zenodo"
+    href = "https://zenodo.org/records/7213796/files/USLegis.zip"
+
+[UNtrade]
+    name = "UNtrade"
+    src = "zenodo"
+    href = "https://zenodo.org/records/7213796/files/UNtrade.zip"
+
+[DBLP]
+    name = "DBLP"
+    src = "gdrive"
+    href = ""
+
+[tgbl-flight]
+    name = "tgbl-flight"
+    src = "tgb"
+    href = "https://object-arbutus.cloud.computecanada.ca/tgb/tgbl-flight-v2.zip"
+
+[tgbl-coin]
+    name = "tgbl-coin"
+    src = "tgb"
+    href = "https://object-arbutus.cloud.computecanada.ca/tgb/tgbl-coin-v2.zip"
