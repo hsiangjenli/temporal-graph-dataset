@@ -1,4 +1,5 @@
 from torch_geometric.data import TemporalData
+import gdown
 from temporal_graph.flight import padding_callsign, padding_typecode, convert_str2int
 import pandas as pd
 import numpy as np
@@ -102,15 +103,10 @@ class TemporalGraph:
         # -- Download the zip file with progress bar ---------------------------
         # ---- check if the dataset has already been downloaded ----------------
         if not(os.path.exists(self._data_folder(dataset_name))):
-            with requests.get(self._url(dataset_name), stream=True) as r:
-                total_size = int(r.headers.get('content-length', 0))
+            # with requests.get(self._url(dataset_name), stream=True) as r:
 
-                with tqdm.tqdm(total=total_size, unit='B', unit_scale=True, desc=f"Downloading {dataset_name}") as pbar:
-                    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
-                        for member in zf.infolist():
-                            try:
-                                zf.extract(member, self.root)
-                            except zipfile.error as e:
-                                pass
-                            pbar.update(len(member.filename.encode('utf-8')) + member.file_size)
+            gdrive_id = self.available_datasets_dict[dataset_name]["href"]
+
+            gdown.download(id=gdrive_id, output=f"{self.root}/{dataset_name}.zip", quiet=False)
+            zipfile.ZipFile(f"{self.root}/{dataset_name}.zip").extractall(self.root)
             
