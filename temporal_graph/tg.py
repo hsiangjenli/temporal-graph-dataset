@@ -27,7 +27,7 @@ class TemporalGraph:
                 tg = TemporalData(**data)
                 torch.save(tg, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
 
-            return torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+        return torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
 
     @property
     def pkg_dir(self) -> str:
