@@ -1,13 +1,14 @@
 from torch_geometric.data import TemporalData
 import torch
 import gdown
-from temporal_graph.flight import padding_callsign, padding_typecode, convert_str2int
 import pandas as pd
 import numpy as np
-import tqdm
 import os
 import toml
 import zipfile
+
+from temporal_graph.flight import padding_callsign, padding_typecode, convert_str2int
+from temporal_graph.utils import generate_splits
 
 class TemporalGraph:
     def __init__(self, root: str=None):
@@ -23,11 +24,33 @@ class TemporalGraph:
             # ---- check if the dataset has already been preprocessed --------------
             # -------- if data_folder contains the file ending with .pt, then the dataset has already been preprocessed ------
             if not(os.path.exists(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")): 
-                data = self._return_data(dataset_name)
-                tg = TemporalData(**data)
-                torch.save(tg, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+                data = self._preprocessed(dataset_name)
+                data = TemporalData(**data)
+                torch.save(data, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+            else:
+                data = torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
 
-        return torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+        else:
+            data = torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+
+        # ---- train/val/test split -----------------------------------------
+        if not(os.path.exists(f"{self._data_folder(dataset_name)}/mask_train.pt")):
+            train_mask, val_mask, test_mask = generate_splits(data)
+            torch.save(torch.tensor(train_mask), f"{self._data_folder(dataset_name)}/mask_train.pt")
+            torch.save(torch.tensor(val_mask), f"{self._data_folder(dataset_name)}/mask_val.pt")
+            torch.save(torch.tensor(test_mask), f"{self._data_folder(dataset_name)}/mask_test.pt")
+        else:
+            train_mask = torch.load(f"{self._data_folder(dataset_name)}/mask_train.pt")
+            val_mask = torch.load(f"{self._data_folder(dataset_name)}/mask_val.pt")
+            test_mask = torch.load(f"{self._data_folder(dataset_name)}/mask_test.pt")
+
+        # ---- convert numpy array to torch tensor ------------------------------
+        data.src = torch.from_numpy(data.src).to(torch.long)
+        data.dst = torch.from_numpy(data.dst).to(torch.long)
+        data.t = torch.from_numpy(data.t).to(torch.long)
+        data.msg = torch.from_numpy(data.msg).to(torch.float)
+
+        return data, train_mask, val_mask, test_mask
 
     @property
     def pkg_dir(self) -> str:
@@ -50,7 +73,7 @@ class TemporalGraph:
     def _data_folder(self, dataset_name) -> str:
         return os.path.join(self.root, dataset_name)
 
-    def _return_data(self, dataset_name) -> dict:
+    def _preprocessed(self, dataset_name) -> dict:
 
         if self.available_datasets_dict[dataset_name]["src"] == "zenodo":
             return self._return_data_zenodo(dataset_name)
