@@ -1,4 +1,5 @@
 from torch_geometric.data import TemporalData
+import torch
 import gdown
 from temporal_graph.flight import padding_callsign, padding_typecode, convert_str2int
 import pandas as pd
@@ -7,8 +8,6 @@ import tqdm
 import os
 import toml
 import zipfile
-import requests
-import io
 
 class TemporalGraph:
     def __init__(self, root: str=None):
@@ -16,9 +15,19 @@ class TemporalGraph:
         self.available_datasets_dict = toml.load(os.path.join(self.pkg_dir, "available_datasets.toml"))
     
     def __call__(self, dataset_name: str) -> TemporalData:
-        self.download(dataset_name)
-        data = self._return_data(dataset_name)
-        return TemporalData(**data)
+
+        # ---- check if the dataset has already been downloaded ----------------
+        if not(os.path.exists(self._data_folder(dataset_name))):
+            self.download(dataset_name)
+
+            # ---- check if the dataset has already been preprocessed --------------
+            # -------- if data_folder contains the file ending with .pt, then the dataset has already been preprocessed ------
+            if not(os.path.exists(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")): 
+                data = self._return_data(dataset_name)
+                tg = TemporalData(**data)
+                torch.save(tg, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+
+            return torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
 
     @property
     def pkg_dir(self) -> str:
@@ -90,7 +99,7 @@ class TemporalGraph:
             data = {
                 "src": df["src"].to_numpy(),
                 "dst": df["dst"].to_numpy(),
-                "t": df["day"].to_numpy(),
+                "t": df["timestamp"].to_numpy(),
                 "msg": df["msg"].to_numpy(),
             }
             
@@ -100,13 +109,8 @@ class TemporalGraph:
         # -- Create the directory ----------------------------------------------
         os.makedirs(self.root, exist_ok=True)
 
-        # -- Download the zip file with progress bar ---------------------------
-        # ---- check if the dataset has already been downloaded ----------------
-        if not(os.path.exists(self._data_folder(dataset_name))):
-            # with requests.get(self._url(dataset_name), stream=True) as r:
+        gdrive_id = self.available_datasets_dict[dataset_name]["href"]
 
-            gdrive_id = self.available_datasets_dict[dataset_name]["href"]
-
-            gdown.download(id=gdrive_id, output=f"{self.root}/{dataset_name}.zip", quiet=False)
-            zipfile.ZipFile(f"{self.root}/{dataset_name}.zip").extractall(self.root)
-            
+        gdown.download(id=gdrive_id, output=f"{self.root}/{dataset_name}.zip", quiet=False)
+        zipfile.ZipFile(f"{self.root}/{dataset_name}.zip").extractall(self.root)
+        os.remove(f"{self.root}/{dataset_name}.zip")

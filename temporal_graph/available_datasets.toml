@@ -1,29 +1,29 @@
 [enron]
     name = "enron"
     src = "zenodo"
-    href = "1veSPeoqSeTuUl8GOrHIwNK0XNuKE-3dH"
+    href = "1eHoOsq9AgQLbAHDEpT8ZdyampgRku_Y3"
 
-[USLegis]
-    name = "USLegis"
-    src = "zenodo"
-    href = "https://zenodo.org/records/7213796/files/USLegis.zip"
+# [USLegis]
+#     name = "USLegis"
+#     src = "zenodo"
+#     href = "https://zenodo.org/records/7213796/files/USLegis.zip"
 
-[UNtrade]
-    name = "UNtrade"
-    src = "zenodo"
-    href = "https://zenodo.org/records/7213796/files/UNtrade.zip"
+# [UNtrade]
+#     name = "UNtrade"
+#     src = "zenodo"
+#     href = "https://zenodo.org/records/7213796/files/UNtrade.zip"
 
-[DBLP]
-    name = "DBLP"
-    src = "gdrive"
-    href = ""
+# [DBLP]
+#     name = "DBLP"
+#     src = "gdrive"
+#     href = ""
 
 [tgbl-flight]
     name = "tgbl-flight"
     src = "tgb"
-    href = "https://object-arbutus.cloud.computecanada.ca/tgb/tgbl-flight-v2.zip"
+    href = "1eJ1LVd-IewkKc5PG-67vRCJlMKTvV9mI"
 
 [tgbl-coin]
     name = "tgbl-coin"
     src = "tgb"
-    href = "https://object-arbutus.cloud.computecanada.ca/tgb/tgbl-coin-v2.zip"
+    href = "1jTvo1nHgIQKkptwqV141Ia92AGhlDpUX"
