@@ -1,8 +1,8 @@
 from temporal_graph import TemporalGraph
 
-tg_data = TemporalGraph(root="data2")
-
-data = tg_data("tgbl-coin")
+tg_dataset = TemporalGraph(root="data2")
+# print(tg_dataset.available_datasets)
+data = tg_dataset("tgbl-coin")
 print(data)
 
 # for dataset_name in tg_data.available_datasets:
