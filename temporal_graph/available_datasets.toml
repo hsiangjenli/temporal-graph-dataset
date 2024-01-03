@@ -13,10 +13,10 @@
 #     src = "zenodo"
 #     href = "https://zenodo.org/records/7213796/files/UNtrade.zip"
 
-# [DBLP]
-#     name = "DBLP"
-#     src = "gdrive"
-#     href = ""
+[DBLP]
+    name = "DBLP"
+    src = "me"
+    href = ""
 
 [tgbl-flight]
     name = "tgbl-flight"
@@ -26,4 +26,4 @@
 [tgbl-coin]
     name = "tgbl-coin"
     src = "tgb"
-    href = "1jTvo1nHgIQKkptwqV141Ia92AGhlDpUX"
+    href = "1eKa9fD0OvG7cEgheeffy1J1xFFQIGQtN"
