@@ -10,6 +10,8 @@ import os
 import toml
 import zipfile
 
+import temporal_graph.p_flight as p_flight
+
 class TemporalGraph:
     def __init__(self, root: str=None):
         self._root = root
@@ -21,14 +23,14 @@ class TemporalGraph:
         if not(os.path.exists(self._data_folder(dataset_name))):
             self.download(dataset_name)
 
-            # ---- check if the dataset has already been preprocessed --------------
-            # -------- if data_folder contains the file ending with .pt, then the dataset has already been preprocessed ------
-            if not(os.path.exists(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")): 
-                data = self._return_data(dataset_name)
-                tg = TemporalData(**data)
-                torch.save(tg, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+        # ---- check if the dataset has already been preprocessed --------------
+        # -------- if data_folder contains the file ending with .pt, then the dataset has already been preprocessed ------
+        if not(os.path.exists(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")): 
+            data = self._return_data(dataset_name)
+            tg = TemporalData(**data)
+            torch.save(tg, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
 
-            return torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+        return torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
 
     @property
     def pkg_dir(self) -> str:
