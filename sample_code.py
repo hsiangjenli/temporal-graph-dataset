@@ -3,9 +3,9 @@ import numpy as np
 
 tg_dataset = TemporalGraph(root="data2")
 # print(tg_dataset.available_datasets)
-data, train_mask, val_mask, test_mask = tg_dataset("tgbl-coin")
-print(data)
+data, train_mask, val_mask, test_mask = tg_dataset("tgbl-flight")
 print(data[train_mask])
+# print(data[train_mask])
 
 # data, train_mask, val_mask, test_mask = tg_dataset("tgbl-coin")
 # print(data)

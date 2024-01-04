@@ -146,11 +146,13 @@ class TemporalGraph:
             df['typecode'] = df['typecode'].apply(p_flight.padding_typecode)
             df['msg'] = df['callsign'] + df['typecode']
             df['msg'] = df['msg'].apply(p_flight.convert_str2int)
-            df['msg'] = df['msg'].apply(lambda x: np.array(x, dtype=np.float32))
+
+            msg = np.array(df['msg'].to_list(), dtype=np.float32)
+            msg = msg.astype(float)
 
             data = {
                 "t": df["timestamp"].to_numpy(),
-                "msg": df["msg"].to_numpy(),
+                "msg": msg,
                 "src_x": df_src["combined"].to_numpy(),
                 "dst_x": df_dst["combined"].to_numpy(),
             }

@@ -13,6 +13,7 @@ def convert_str2int(in_str: str):
             out.append(-1)
         else:
             out.append(ord(element.upper()) - 44 + 9)
+    # out = np.array(out, dtype=np.float32)
     return out
 
 def convert_str2int_list(in_str: str):
