@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ntust-tg"
-version = "0.1"
+version = "0.2"
 description = "Temporal Graph Datasets for PyTorch Geometric"
 authors = ["Hsiang-Jen Li <hsiangjenli@gmail.com>"]
 readme = "README.md"
