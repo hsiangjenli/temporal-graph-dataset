@@ -13,7 +13,18 @@ def convert_str2int(in_str: str):
             out.append(-1)
         else:
             out.append(ord(element.upper()) - 44 + 9)
-    # out = np.array(out, dtype=np.float32)
+    return out
+
+def convert_str2int_list(in_str: str):
+    out = []
+    for element in in_str:
+        if element.isnumeric():
+            out.append(element)
+        elif element == "!":
+            out.append(-1)
+        else:
+            out.append(ord(element.upper()) - 44 + 9)
+    out = np.array(out, dtype=np.float32)
     return out
 
 def padding_callsign(i):
@@ -45,5 +56,3 @@ def convert_continent(i):
         return [-1, -1]
     else:
         return [ord(i[0]) - 64, ord(i[1]) - 64]
-
-# def node_features()

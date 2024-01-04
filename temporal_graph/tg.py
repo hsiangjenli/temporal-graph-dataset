@@ -12,6 +12,7 @@ import toml
 import zipfile
 
 import temporal_graph.p_flight as p_flight
+import temporal_graph.utils as utils
 
 class TemporalGraph:
     def __init__(self, root: str=None):
@@ -27,11 +28,31 @@ class TemporalGraph:
         # ---- check if the dataset has already been preprocessed --------------
         # -------- if data_folder contains the file ending with .pt, then the dataset has already been preprocessed ------
         if not(os.path.exists(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")): 
-            data = self._return_data(dataset_name)
-            tg = TemporalData(**data)
-            torch.save(tg, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+            data = self._preprocessed(dataset_name)
+            data = TemporalData(**data)
+            torch.save(data, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+        else:
+            data = torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
 
-        return torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+        # ---- train/val/test split -----------------------------------------
+        if not(os.path.exists(f"{self._data_folder(dataset_name)}/mask_train.pt")):
+            train_mask, val_mask, test_mask = utils.generate_splits(data)
+            torch.save(torch.tensor(train_mask), f"{self._data_folder(dataset_name)}/mask_train.pt")
+            torch.save(torch.tensor(val_mask), f"{self._data_folder(dataset_name)}/mask_val.pt")
+            torch.save(torch.tensor(test_mask), f"{self._data_folder(dataset_name)}/mask_test.pt")
+        else:
+            train_mask = torch.load(f"{self._data_folder(dataset_name)}/mask_train.pt")
+            val_mask = torch.load(f"{self._data_folder(dataset_name)}/mask_val.pt")
+            test_mask = torch.load(f"{self._data_folder(dataset_name)}/mask_test.pt")
+
+        # ---- convert numpy array to torch tensor ------------------------------
+        data.src = torch.from_numpy(data.src).to(torch.long)
+        data.dst = torch.from_numpy(data.dst).to(torch.long)
+        data.t = torch.from_numpy(data.t).to(torch.long)
+
+        data.msg = torch.from_numpy(data.msg)#.to(torch.float32)
+
+        return data, train_mask.tolist(), val_mask.tolist(), test_mask.tolist()
 
     @property
     def pkg_dir(self) -> str:
@@ -61,7 +82,15 @@ class TemporalGraph:
         
         elif self.available_datasets_dict[dataset_name]["src"] == "tgb":
             return self._return_data_tgb(dataset_name)
-        
+    
+    def _src_dst_to_idx(self, src, dst):
+        src_dst = np.concatenate([src, dst])
+        src_dst_unique = np.unique(src_dst)
+        src_dst_unique_dict = {k: v for v, k in enumerate(src_dst_unique)}
+        src_idx = np.array([src_dst_unique_dict[k] for k in src])
+        dst_idx = np.array([src_dst_unique_dict[k] for k in dst])
+        return src_idx, dst_idx 
+    
     def _return_data_zenodo(self, dataset_name) -> dict:
 
         graph = pd.read_csv(f"{self._data_folder(dataset_name)}/ml_{dataset_name}.csv")
@@ -81,17 +110,9 @@ class TemporalGraph:
             "t": graph["ts"].to_numpy(),
             "msg": edge_features,
         }
-    
-    def _src_dst_to_idx(self, src, dst):
-        src_dst = np.concatenate([src, dst])
-        src_dst_unique = np.unique(src_dst)
-        src_dst_unique_dict = {k: v for v, k in enumerate(src_dst_unique)}
-        src_idx = np.array([src_dst_unique_dict[k] for k in src])
-        dst_idx = np.array([src_dst_unique_dict[k] for k in dst])
-        return src_idx, dst_idx
 
     def _return_data_tgb(self, dataset_name) -> dict:
-        df = pd.read_csv(f"{self._data_folder(dataset_name)}/{dataset_name}_edgelist_v2.csv")
+        df = pd.read_csv(f"{self._data_folder(dataset_name)}/{dataset_name}_edgelist_v2.csv", nrows=1000)
 
         if dataset_name == "tgbl-coin":
 
@@ -106,6 +127,7 @@ class TemporalGraph:
             
             # -- node features --------------------------------------------------
             df_node_feat = pd.read_csv(f"{self._data_folder(dataset_name)}/airport_node_feat_v2.csv")
+
             df_node_feat['iso_region'] = df_node_feat['iso_region'].apply(p_flight.padding_iso_region)
             df_node_feat['iso_region'] = df_node_feat['iso_region'].apply(p_flight.convert_str2int)
             df_node_feat["continent"] = df_node_feat["continent"].apply(p_flight.convert_continent)
@@ -124,6 +146,7 @@ class TemporalGraph:
             df['typecode'] = df['typecode'].apply(p_flight.padding_typecode)
             df['msg'] = df['callsign'] + df['typecode']
             df['msg'] = df['msg'].apply(p_flight.convert_str2int)
+            df['msg'] = df['msg'].apply(lambda x: np.array(x, dtype=np.float32))
 
             data = {
                 "t": df["timestamp"].to_numpy(),
@@ -137,6 +160,14 @@ class TemporalGraph:
         data.update({"src": src_idx, "dst": dst_idx})
             
         return data
+    
+    def _return_data(self, dataset_name) -> dict:
+        
+        if self.available_datasets_dict[dataset_name]["src"] == "zenodo":
+            return self._return_data_zenodo(dataset_name)
+        
+        elif self.available_datasets_dict[dataset_name]["src"] == "tgb":
+            return self._return_data_tgb(dataset_name)
     
     def download(self, dataset_name: str):
         # -- Create the directory ----------------------------------------------

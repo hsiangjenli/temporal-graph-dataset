@@ -27,9 +27,20 @@ tg_dataset = TemporalGraph(root="data")
 
 ### List available datasets
 ```python
-print(tg_dataset.available_datasets)
+tg_dataset.available_datasets
 ```
 
+### Get a dataset
+```python
+
+```
+
+### TemporalGraphLoader
+- torch_geometric.loader.TemporalDataLoader
+- SophisticatedTemporalLoader
+  
+```python
+```
 
 ## How I preprocess the dataset
 - `p_{dataset_name}.py` is a Python script to preprocess the dataset.
