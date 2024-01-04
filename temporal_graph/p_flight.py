@@ -42,10 +42,11 @@ def padding_typecode(i):
     if len(i) == 0 or i == "nan":
         i = "!!!!!!!!"
     while len(i) < 8:
-        i += "!"
+        i = f"{'!'*(8-len(i))}{i}"
     if len(i) > 8:
         i = "!!!!!!!!"
     return i
+
 
 def padding_iso_region(i):
     if len(i) != 8:

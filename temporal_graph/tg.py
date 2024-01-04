@@ -10,6 +10,7 @@ import tqdm
 import os
 import toml
 import zipfile
+import pickle
 
 import temporal_graph.p_flight as p_flight
 import temporal_graph.utils as utils
@@ -35,24 +36,26 @@ class TemporalGraph:
             data = torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
 
         # ---- train/val/test split -----------------------------------------
-        if not(os.path.exists(f"{self._data_folder(dataset_name)}/mask_train.pt")):
+        if not(os.path.exists(f"{self._data_folder(dataset_name)}/mask_train.pkl")):
             train_mask, val_mask, test_mask = utils.generate_splits(data)
-            torch.save(torch.tensor(train_mask), f"{self._data_folder(dataset_name)}/mask_train.pt")
-            torch.save(torch.tensor(val_mask), f"{self._data_folder(dataset_name)}/mask_val.pt")
-            torch.save(torch.tensor(test_mask), f"{self._data_folder(dataset_name)}/mask_test.pt")
+            pickle.dump(train_mask, open(f"{self._data_folder(dataset_name)}/mask_train.pkl", "wb"))
+            pickle.dump(val_mask, open(f"{self._data_folder(dataset_name)}/mask_val.pkl", "wb"))
+            pickle.dump(test_mask, open(f"{self._data_folder(dataset_name)}/mask_test.pkl", "wb"))
+        
         else:
-            train_mask = torch.load(f"{self._data_folder(dataset_name)}/mask_train.pt")
-            val_mask = torch.load(f"{self._data_folder(dataset_name)}/mask_val.pt")
-            test_mask = torch.load(f"{self._data_folder(dataset_name)}/mask_test.pt")
+            train_mask = pickle.load(open(f"{self._data_folder(dataset_name)}/mask_train.pkl", "rb"))
+            val_mask = pickle.load(open(f"{self._data_folder(dataset_name)}/mask_val.pkl", "rb"))
+            test_mask = pickle.load(open(f"{self._data_folder(dataset_name)}/mask_test.pkl", "rb"))
 
         # ---- convert numpy array to torch tensor ------------------------------
         data.src = torch.from_numpy(data.src).to(torch.long)
         data.dst = torch.from_numpy(data.dst).to(torch.long)
         data.t = torch.from_numpy(data.t).to(torch.long)
+        data.src_x = torch.from_numpy(data.src_x).to(torch.float32)
+        data.dst_x = torch.from_numpy(data.dst_x).to(torch.float32)
+        data.msg = torch.from_numpy(data.msg).to(torch.float32)
 
-        data.msg = torch.from_numpy(data.msg)#.to(torch.float32)
-
-        return data, train_mask.tolist(), val_mask.tolist(), test_mask.tolist()
+        return data, train_mask, val_mask, test_mask
 
     @property
     def pkg_dir(self) -> str:
@@ -76,7 +79,6 @@ class TemporalGraph:
         return os.path.join(self.root, dataset_name)
 
     def _preprocessed(self, dataset_name) -> dict:
-
         if self.available_datasets_dict[dataset_name]["src"] == "zenodo":
             return self._return_data_zenodo(dataset_name)
         
@@ -117,7 +119,7 @@ class TemporalGraph:
         if dataset_name == "tgbl-coin":
 
             data = {
-                "t": df["day"].to_numpy(),
+                "t": df["day"].to_numpy().reshape(-1, 1),
                 "msg": np.zeros((df.shape[0], 1)),
                 "src_x": np.ones((df.shape[0], 1)),
                 "dst_x": np.ones((df.shape[0], 1)),
@@ -131,15 +133,17 @@ class TemporalGraph:
             df_node_feat['iso_region'] = df_node_feat['iso_region'].apply(p_flight.padding_iso_region)
             df_node_feat['iso_region'] = df_node_feat['iso_region'].apply(p_flight.convert_str2int)
             df_node_feat["continent"] = df_node_feat["continent"].apply(p_flight.convert_continent)
-            df_node_feat['type'] = df_node_feat['type'].apply(p_flight.convert_str2int)
+            df_node_feat['type'] = df_node_feat['type'].apply(p_flight.convert_type)
+
+            df_node_feat["type"] = df_node_feat["type"].apply(lambda x: [x])
             df_node_feat["longitude"] = df_node_feat["longitude"].apply(lambda x: [x])
             df_node_feat["latitude"] = df_node_feat["latitude"].apply(lambda x: [x])
 
             df_node_feat['combined'] = df_node_feat['iso_region'] + df_node_feat['continent'] + df_node_feat['type'] + df_node_feat['longitude'] + df_node_feat['latitude']
-            df_node_feat['combined'] = df_node_feat['combined'].apply(lambda x: np.array(x, dtype=np.float32))
+            # df_node_feat['combined'] = df_node_feat['combined'].apply(lambda x: np.array(x, dtype=np.float32))
 
-            df_src = pd.merge(df["src"], df_node_feat, left_on='src', right_on='airport_code')
-            df_dst = pd.merge(df["dst"], df_node_feat, left_on='dst', right_on='airport_code')
+            df_src = pd.merge(df["src"], df_node_feat, left_on='src', right_on='airport_code', how='left')
+            df_dst = pd.merge(df["dst"], df_node_feat, left_on='dst', right_on='airport_code', how='left')
 
             # -- edge data ------------------------------------------------------
             df['callsign'] = df['callsign'].apply(p_flight.padding_callsign)
@@ -149,27 +153,28 @@ class TemporalGraph:
 
             msg = np.array(df['msg'].to_list(), dtype=np.float32)
             msg = msg.astype(float)
+            
+            src_x = np.array(df_src['combined'].to_list(), dtype=np.float32)
+            src_x = src_x.astype(float)
+
+            dst_x = np.array(df_dst['combined'].to_list(), dtype=np.float32)
+            dst_x = dst_x.astype(float)
+
+            # print(src_x)
+            # print(src_x.shape)
 
             data = {
-                "t": df["timestamp"].to_numpy(),
+                "t": df["timestamp"].to_numpy().reshape(-1, 1),
                 "msg": msg,
-                "src_x": df_src["combined"].to_numpy(),
-                "dst_x": df_dst["combined"].to_numpy(),
+                "src_x": src_x,
+                "dst_x": dst_x,
             }
         
         src_idx, dst_idx = self._src_dst_to_idx(df["src"], df["dst"])
         
-        data.update({"src": src_idx, "dst": dst_idx})
+        data.update({"src": src_idx.reshape(-1, 1), "dst": dst_idx.reshape(-1, 1)})
             
         return data
-    
-    def _return_data(self, dataset_name) -> dict:
-        
-        if self.available_datasets_dict[dataset_name]["src"] == "zenodo":
-            return self._return_data_zenodo(dataset_name)
-        
-        elif self.available_datasets_dict[dataset_name]["src"] == "tgb":
-            return self._return_data_tgb(dataset_name)
     
     def download(self, dataset_name: str):
         # -- Create the directory ----------------------------------------------

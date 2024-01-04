@@ -3,13 +3,10 @@ import numpy as np
 
 tg_dataset = TemporalGraph(root="data2")
 # print(tg_dataset.available_datasets)
-data, train_mask, val_mask, test_mask = tg_dataset("tgbl-flight")
+data, train_mask, val_mask, test_mask = tg_dataset("tgbl-coin")
+print(data)
+print(data.src_x)
 print(data[train_mask])
-# print(data[train_mask])
-
-# data, train_mask, val_mask, test_mask = tg_dataset("tgbl-coin")
-# print(data)
-# print(data[train_mask])
 
 # for dataset_name in tg_data.available_datasets:
 #     print(f"Downloading {dataset_name}...")
