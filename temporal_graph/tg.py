@@ -114,7 +114,7 @@ class TemporalGraph:
         }
 
     def _return_data_tgb(self, dataset_name) -> dict:
-        df = pd.read_csv(f"{self._data_folder(dataset_name)}/{dataset_name}_edgelist_v2.csv", nrows=1000)
+        df = pd.read_csv(f"{self._data_folder(dataset_name)}/{dataset_name}_edgelist_v2.csv")
 
         if dataset_name == "tgbl-coin":
 
