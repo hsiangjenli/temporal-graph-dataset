@@ -123,7 +123,7 @@ class TemporalGraph:
         if dataset_name == "tgbl-coin":
 
             data = {
-                "t": df["day"].to_numpy().reshape(-1, 1),
+                "t": df["day"].to_numpy(),
                 "msg": np.zeros((df.shape[0], 1)),
                 "src_x": np.ones((df.shape[0], 1)),
                 "dst_x": np.ones((df.shape[0], 1)),
@@ -159,17 +159,17 @@ class TemporalGraph:
             msg = np.array(df['msg'].to_list(), dtype=np.float32)
             msg = msg.astype(float)
             
-            src_x = np.array(df_src['combined'].to_list(), dtype=np.float32)
+            src_x = np.array(df_src['combined'].to_list(), dtype=np.float32).reshape(-1, 1)
             src_x = src_x.astype(float)
 
-            dst_x = np.array(df_dst['combined'].to_list(), dtype=np.float32)
+            dst_x = np.array(df_dst['combined'].to_list(), dtype=np.float32).reshape(-1, 1)
             dst_x = dst_x.astype(float)
 
             # print(src_x)
             # print(src_x.shape)
 
             data = {
-                "t": df["timestamp"].to_numpy().reshape(-1, 1),
+                "t": df["timestamp"].to_numpy(),
                 "msg": msg,
                 "src_x": src_x,
                 "dst_x": dst_x,
@@ -177,7 +177,7 @@ class TemporalGraph:
         
         src_idx, dst_idx = self._src_dst_to_idx(df["src"], df["dst"])
         
-        data.update({"src": src_idx.reshape(-1, 1), "dst": dst_idx.reshape(-1, 1)})
+        data.update({"src": src_idx, "dst": dst_idx})
             
         return data
     

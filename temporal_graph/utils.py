@@ -3,7 +3,7 @@ from torch_geometric.data import TemporalData
 
 def generate_splits(data: TemporalData, val_ratio: float = 0.15, test_ratio: float = 0.15):
 
-    full_timestamps = data.t.reshape(-1)
+    full_timestamps = data.t
 
     val_time, test_time = list(np.quantile(full_timestamps,[(1 - val_ratio - test_ratio), (1 - test_ratio)]))
 
