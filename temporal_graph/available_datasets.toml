@@ -1,6 +1,6 @@
 [enron]
     name = "enron"
-    src = "zenodo"
+    src = "me"
     href = "1eHoOsq9AgQLbAHDEpT8ZdyampgRku_Y3"
 
 # [USLegis]

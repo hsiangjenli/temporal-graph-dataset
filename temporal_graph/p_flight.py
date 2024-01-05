@@ -49,12 +49,14 @@ def padding_typecode(i):
 
 
 def padding_iso_region(i):
-    if len(i) != 8:
-        i = f"{'!'*(8-len(i))}{i}"
+    i = i.replace("-", "")
+    if len(i) != 6:
+        i = f"{'!'*(6-len(i))}{i}"
     return i
 
 def convert_continent(i):
+    unique_continent = ['OC', 'AF', 'AN', 'EU', 'AS', 'SA']
     if isinstance(i, float):
-        return [-1, -1]
+        return [-1]
     else:
-        return [ord(i[0]) - 64, ord(i[1]) - 64]
+        return [unique_continent.index(i)]

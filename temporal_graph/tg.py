@@ -31,7 +31,7 @@ class TemporalGraph:
         if not(os.path.exists(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")): 
             data = self._preprocessed(dataset_name)
             data = TemporalData(**data)
-            torch.save(data, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
+            torch.save(data, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt", pickle_protocol=4)
         else:
             data = torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
 
@@ -86,11 +86,15 @@ class TemporalGraph:
             return self._return_data_tgb(dataset_name)
     
     def _src_dst_to_idx(self, src, dst):
-        src_dst = np.concatenate([src, dst])
-        src_dst_unique = np.unique(src_dst)
-        src_dst_unique_dict = {k: v for v, k in enumerate(src_dst_unique)}
-        src_idx = np.array([src_dst_unique_dict[k] for k in src])
-        dst_idx = np.array([src_dst_unique_dict[k] for k in dst])
+
+        nodes = set(src.unique().tolist() + dst.unique().tolist())
+        id_map = {}
+        for i, node in enumerate(nodes):
+            id_map[node] = i
+        
+        src_idx = src.apply(lambda x: id_map[x]).to_numpy()
+        dst_idx = dst.apply(lambda x: id_map[x]).to_numpy()
+
         return src_idx, dst_idx 
     
     def _return_data_zenodo(self, dataset_name) -> dict:
@@ -130,16 +134,17 @@ class TemporalGraph:
             # -- node features --------------------------------------------------
             df_node_feat = pd.read_csv(f"{self._data_folder(dataset_name)}/airport_node_feat_v2.csv")
 
-            df_node_feat['iso_region'] = df_node_feat['iso_region'].apply(p_flight.padding_iso_region)
-            df_node_feat['iso_region'] = df_node_feat['iso_region'].apply(p_flight.convert_str2int)
-            df_node_feat["continent"] = df_node_feat["continent"].apply(p_flight.convert_continent)
+            # df_node_feat['iso_region'] = df_node_feat['iso_region'].apply(p_flight.padding_iso_region)
+            # df_node_feat['iso_region'] = df_node_feat['iso_region'].apply(p_flight.convert_str2int)
+            # df_node_feat["continent"] = df_node_feat["continent"].apply(p_flight.convert_continent)
             df_node_feat['type'] = df_node_feat['type'].apply(p_flight.convert_type)
 
             df_node_feat["type"] = df_node_feat["type"].apply(lambda x: [x])
-            df_node_feat["longitude"] = df_node_feat["longitude"].apply(lambda x: [x])
-            df_node_feat["latitude"] = df_node_feat["latitude"].apply(lambda x: [x])
+            # df_node_feat["longitude"] = df_node_feat["longitude"].apply(lambda x: [x])
+            # df_node_feat["latitude"] = df_node_feat["latitude"].apply(lambda x: [x])
 
-            df_node_feat['combined'] = df_node_feat['iso_region'] + df_node_feat['continent'] + df_node_feat['type'] + df_node_feat['longitude'] + df_node_feat['latitude']
+            # df_node_feat['combined'] = df_node_feat['iso_region'] + df_node_feat['continent'] + df_node_feat['type'] + df_node_feat['longitude'] + df_node_feat['latitude']
+            df_node_feat['combined'] = df_node_feat['type']# + df_node_feat['longitude'] + df_node_feat['latitude']
             # df_node_feat['combined'] = df_node_feat['combined'].apply(lambda x: np.array(x, dtype=np.float32))
 
             df_src = pd.merge(df["src"], df_node_feat, left_on='src', right_on='airport_code', how='left')
