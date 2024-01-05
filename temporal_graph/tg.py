@@ -188,5 +188,5 @@ class TemporalGraph:
         gdrive_id = self.available_datasets_dict[dataset_name]["href"]
 
         gdown.download(id=gdrive_id, output=f"{self.root}/{dataset_name}.zip", quiet=False)
-        zipfile.ZipFile(f"{self.root}/{dataset_name}.zip").extractall(self.root)
+        zipfile.ZipFile(f"{self.root}/{dataset_name}.zip").extractall(f"{self.root}/{dataset_name}")
         os.remove(f"{self.root}/{dataset_name}.zip")
