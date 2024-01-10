@@ -4,20 +4,21 @@ import numpy as np
 
 tg_dataset = TemporalGraph(root="data2")
 # print(tg_dataset.available_datasets)
-# data, x, train_mask, val_mask, test_mask = tg_dataset("tgbl-coin")
-# print(data)
-# print(x)
-# # print(data[train_mask])
+data, x, train_mask, val_mask, test_mask = tg_dataset("tgbl-coin")
+print(data)
+print(x)
+print(data[train_mask])
 
-# loader = TemporalDataLoader(data, batch_size=1, shuffle=False)
+loader = TemporalDataLoader(data, batch_size=1, shuffle=False)
 
-# for batch in loader:
-#     print(batch)
-#     break
+for batch in loader:
+    print(batch)
+    break
 
 data, x, train_mask, val_mask, test_mask = tg_dataset("tgbl-flight")
 print(data)
-# print(data[train_mask])
+print(x)
+print(data[train_mask])
 
 loader = TemporalDataLoader(data, batch_size=1, shuffle=False)
 

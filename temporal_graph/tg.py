@@ -31,7 +31,7 @@ class TemporalGraph:
         if not(os.path.exists(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")): 
             data, x = self._preprocessed(dataset_name)
             data = TemporalData(**data)
-            # x = torch.from_numpy(x).to(torch.float32)
+            x = torch.from_numpy(x).to(torch.float32)
             torch.save(data, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt", pickle_protocol=4)
             torch.save(x, f"{self._data_folder(dataset_name)}/pyg_{dataset_name}_node_feat.pt", pickle_protocol=4)
         else:
@@ -158,7 +158,8 @@ class TemporalGraph:
             df_node_feat = df_node_feat.set_index('idx')
             df_node_feat = df_node_feat.sort_index()
 
-            x = df_node_feat['combined'].to_numpy()
+            x = np.array(df_node_feat['combined'].to_list(), dtype=np.float32)
+            x = x.astype(float)
 
             # df_src = pd.merge(df["src"], df_node_feat, left_on='src', right_on='airport_code', how='left')
             # df_dst = pd.merge(df["dst"], df_node_feat, left_on='dst', right_on='airport_code', how='left')
