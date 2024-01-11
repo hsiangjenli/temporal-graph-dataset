@@ -46,7 +46,7 @@ class Net(torch.nn.Module):
         return self.attn(self.his_loader.z, edge_index, edge_attr)
 
 class HistoryLoader:
-    def __init__(self, num_nodes, memory_dim, embedd_dim, time_dim):
+    def __init__(self, num_nodes, edge_dim, memory_dim, embedd_dim, time_dim):
         """
         Args:
             memory_dim (int): how many edges to remember
@@ -58,13 +58,13 @@ class HistoryLoader:
 
         self.memory_t = torch.zeros((num_nodes, memory_dim), dtype=torch.float32)
         self.memory_edge_index = torch.zeros((num_nodes, memory_dim), dtype=torch.long)
-        self.memory_edge_attr = torch.zeros((num_nodes, memory_dim), dtype=torch.float32)
+        self.memory_edge_attr = torch.zeros((num_nodes, memory_dim, edge_dim), dtype=torch.float32)
 
         self.next_insert_position = torch.zeros(num_nodes, dtype=torch.long)
         self.cur_e_id = 0
 
         self.t_encoder = TimeEncoder(memory_dim=memory_dim, time_dim=time_dim)
-        self.m_module = GRUCell(embedd_dim, memory_dim)
+        self.m_module = GRUCell(edge_dim, memory_dim)
     
     def retrieve(self, n_id):
         edge_index = self.edge_index(n_id)
@@ -78,9 +78,9 @@ class HistoryLoader:
         for src, dst, node_t, msg in zip(src_n_id, dst_n_id, t, edge_attr):
             position = self.next_insert_position[src].item()
 
-            self.memory_z[src] = self.m_module(z[src])
+            self.memory_z[src] = z[src]
             self.memory_edge_index[src, position] = dst
-            #self.memory_edge_attr[src, position] = msg
+            self.memory_edge_attr[src, position] = msg
             self.memory_t[src, position] = node_t
 
             self.next_insert_position[src] = (position + 1) % self.memory_dim
@@ -103,6 +103,12 @@ class HistoryLoader:
         # -- replace the src edge index with the correct node id --
         valid_edge_index[:, 0] = n_id[valid_edge_index[:, 0]]
         return valid_edge_index.reshape(-1, 2).t().contiguous()
+    
+    def edge_attr(self, n_id):
+        for i in range(n_id.shape[0]):
+            self.memory_edge_attr[n_id[i]] = self.m_module(self.memory_edge_attr[n_id[i]])
+
+        return self.memory_edge_attr[n_id]
 
 
 class TimeEncoder(torch.nn.Module):
@@ -134,20 +140,19 @@ memory_dim = 20     # how many edges to remember
 time_dim = 10       # using linear transformation to encode memory time into smaller dimension
 # ============================================================================================
 
-history_loader = HistoryLoader(num_nodes=data.num_nodes, memory_dim=memory_dim, embedd_dim=embedd_dim, time_dim=time_dim)
+history_loader = HistoryLoader(num_nodes=data.num_nodes, memory_dim=memory_dim, embedd_dim=embedd_dim, time_dim=time_dim, edge_dim=edge_dim)
 model = Net(node_dim=node_dim, edge_dim=edge_dim, embedd_dim=embedd_dim, time_dim=time_dim, his_loader=history_loader)
 
 for i, batch in enumerate(loader):
 
-    # cur_e_id, m_edge_index, m_t, m_z = history_loader.retrieve(batch.n_id)
-
     z = model(x=x, n_id=batch.n_id, edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst)
     history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
-
-    # print(batch.edge_index.shape)
-    # print(history_loader.edge_index(batch.n_id).shape)
-    # break
     
+    print(history_loader.edge_attr(batch.n_id).shape)
+    print(history_loader.edge_attr(batch.n_id))
+    print(history_loader.m_module(history_loader.edge_attr(batch.n_id)))
+
+    break
     if i == 100:
         print(z[batch.n_id])
         break
