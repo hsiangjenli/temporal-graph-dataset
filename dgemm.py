@@ -66,7 +66,7 @@ class HistoryLoader:
         self.cur_e_id = 0
 
         self.t_encoder = TimeEncoder(memory_dim=memory_dim, time_dim=time_dim)
-        self.m_module = GRUCell(memory_dim, 1)
+        self.m_module = GRUCell(edge_dim, 1)
     
     def retrieve(self, n_id):
         edge_index = self.edge_index(n_id)
@@ -110,7 +110,13 @@ class HistoryLoader:
     def edge_attr(self, n_id):
         return self.memory_edge_attr[:, n_id, :]
     
-    # def h_edge_attr(self, n_id):
+    def h_edge_attr(self, n_id):
+        edge_attr = self.edge_attr(n_id)
+
+        for t in range(self.memory_dim):
+            hx = self.m_module(edge_attr[t])
+
+        return hx
     #     for 
     #     return self.m_module()
         # for idx in n_id:
@@ -156,8 +162,8 @@ for i, batch in enumerate(loader):
     z = model(x=x, n_id=batch.n_id, edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst)
     history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
     
-    print(history_loader.edge_attr(batch.n_id).shape)
-    print(history_loader.edge_attr(batch.n_id))
+    # print(history_loader.edge_attr(batch.n_id).shape)
+    print(history_loader.h_edge_attr(batch.n_id))
 
     break
     if i == 100:
