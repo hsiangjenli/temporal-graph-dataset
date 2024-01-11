@@ -58,13 +58,15 @@ class HistoryLoader:
 
         self.memory_t = torch.zeros((num_nodes, memory_dim), dtype=torch.float32)
         self.memory_edge_index = torch.zeros((num_nodes, memory_dim), dtype=torch.long)
-        self.memory_edge_attr = torch.zeros((num_nodes, memory_dim, edge_dim), dtype=torch.float32)
+        self.memory_edge_attr = torch.zeros((memory_dim, num_nodes, edge_dim), dtype=torch.float32)
+        # self.memory_edge_attr = torch.zeros((num_nodes, memory_dim, edge_dim), dtype=torch.float32) 
+        # (memory_dim, num_nodes, edge_dim)
 
         self.next_insert_position = torch.zeros(num_nodes, dtype=torch.long)
         self.cur_e_id = 0
 
         self.t_encoder = TimeEncoder(memory_dim=memory_dim, time_dim=time_dim)
-        self.m_module = GRUCell(edge_dim, memory_dim)
+        self.m_module = GRUCell(memory_dim, 1)
     
     def retrieve(self, n_id):
         edge_index = self.edge_index(n_id)
@@ -80,7 +82,8 @@ class HistoryLoader:
 
             self.memory_z[src] = z[src]
             self.memory_edge_index[src, position] = dst
-            self.memory_edge_attr[src, position] = msg
+            # self.memory_edge_attr[src, position] = msg
+            self.memory_edge_attr[position, src] = msg
             self.memory_t[src, position] = node_t
 
             self.next_insert_position[src] = (position + 1) % self.memory_dim
@@ -105,10 +108,15 @@ class HistoryLoader:
         return valid_edge_index.reshape(-1, 2).t().contiguous()
     
     def edge_attr(self, n_id):
-        for i in range(n_id.shape[0]):
-            self.memory_edge_attr[n_id[i]] = self.m_module(self.memory_edge_attr[n_id[i]])
-
-        return self.memory_edge_attr[n_id]
+        return self.memory_edge_attr[:, n_id, :]
+    
+    # def h_edge_attr(self, n_id):
+    #     for 
+    #     return self.m_module()
+        # for idx in n_id:
+        #     node_edge_attr = self.memory_edge_attr[idx]
+        #     node_edge_attr = node_edge_attr[:, 0, None]
+        #     yield self.m_module(node_edge_attr)
 
 
 class TimeEncoder(torch.nn.Module):
@@ -150,7 +158,6 @@ for i, batch in enumerate(loader):
     
     print(history_loader.edge_attr(batch.n_id).shape)
     print(history_loader.edge_attr(batch.n_id))
-    print(history_loader.m_module(history_loader.edge_attr(batch.n_id)))
 
     break
     if i == 100:
