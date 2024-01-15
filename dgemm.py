@@ -60,8 +60,6 @@ class HistoryLoader:
         self.memory_edge_index = torch.zeros((num_nodes, memory_dim), dtype=torch.long)
         self.memory_edge_attr = torch.zeros((memory_dim, num_nodes, edge_dim), dtype=torch.float32)
         self.memory_h_edge_attr = torch.zeros((num_nodes, h_edge_attr_dim), dtype=torch.float32)
-        # self.memory_edge_attr = torch.zeros((num_nodes, memory_dim, edge_dim), dtype=torch.float32) 
-        # (memory_dim, num_nodes, edge_dim)
 
         self.next_insert_position = torch.zeros(num_nodes, dtype=torch.long)
         self.cur_e_id = 0
@@ -85,8 +83,6 @@ class HistoryLoader:
         position = self.memory_dim - 1
 
         for src, dst, node_t, msg in zip(src_n_id, dst_n_id, t, edge_attr):
-            # position = self.next_insert_position[src].item()
-
             self.memory_z[src] = z[src]
             
             # move the information from the old position to the new position
@@ -98,13 +94,6 @@ class HistoryLoader:
             self.memory_edge_index[src, -1] = dst
             self.memory_edge_attr[-1, position] = msg
             self.memory_t[src, -1] = node_t
-
-            # self.memory_edge_index[src, position] = dst
-            # self.memory_edge_attr[src, position] = msg
-            # self.memory_edge_attr[position, src] = msg
-            # self.memory_t[src, position] = node_t
-
-            # self.next_insert_position[src] = (position + 1) % self.memory_dim
     
     @property
     def z(self):
@@ -164,10 +153,10 @@ loader = TemporalDataLoader(data[train_mask], batch_size=5, shuffle=False)
 # ========= setup parameters ========================================================================================
 node_dim = 10       
 edge_dim = 16
-embedd_dim = 20         # embedding dimension for each node
-memory_dim = 100        # how many edges to remember
-time_dim = 5            # using linear transformation to encode memory time into smaller dimension
-h_edge_attr_dim = 3     # hidden state dimension for edge message/edge attr to remember the past interaction
+embedd_dim = 20     # embedding dimension for each node
+memory_dim = 100    # how many edges to remember
+time_dim = 5        # using linear transformation to encode memory time into smaller dimension
+h_edge_attr_dim = 3 # hidden state dimension for edge message/edge attr to remember the past interaction
 # ====================================================================================================================
 
 history_loader = HistoryLoader(num_nodes=data.num_nodes, memory_dim=memory_dim, embedd_dim=embedd_dim, time_dim=time_dim, edge_dim=edge_dim, h_edge_attr_dim=h_edge_attr_dim)
@@ -177,9 +166,6 @@ for i, batch in enumerate(loader):
 
     z = model(x=x, n_id=batch.n_id, edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst)
     history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
-    
-    # print(history_loader.edge_attr(batch.n_id).shape)
-    # print(history_loader.h_edge_attr(batch.n_id))
 
     # break
     if i == 100:
