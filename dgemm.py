@@ -21,10 +21,10 @@ class KHopAggregator(MessagePassing):
         return x
 
 class Net(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, embedd_dim, time_dim, his_loader):
+    def __init__(self, node_dim, edge_dim, embedd_dim, time_dim, his_loader, h_edge_attr_dim):
         super(Net, self).__init__()
 
-        edge_dim = edge_dim + 2 * (node_dim + time_dim)
+        edge_dim = edge_dim + 2 * (node_dim + time_dim) + h_edge_attr_dim
 
         self.aggr = KHopAggregator(k=3)
         self.attn = TransformerConv(in_channels=embedd_dim, out_channels=embedd_dim, edge_dim=edge_dim)
@@ -41,12 +41,12 @@ class Net(torch.nn.Module):
         src_rel_t = t - src_enc_t
         dst_rel_t = t - dst_enc_t
 
-        edge_attr = torch.cat([edge_attr, src_rel_t, dst_rel_t, x[src_n_id], x[dst_n_id]], dim=-1)
+        edge_attr = torch.cat([edge_attr, src_rel_t, dst_rel_t, x[src_n_id], x[dst_n_id], self.his_loader.h_edge_attr(src_n_id)], dim=-1)
 
         return self.attn(self.his_loader.z, edge_index, edge_attr)
 
 class HistoryLoader:
-    def __init__(self, num_nodes, edge_dim, memory_dim, embedd_dim, time_dim):
+    def __init__(self, num_nodes, edge_dim, memory_dim, embedd_dim, time_dim, h_edge_attr_dim):
         """
         Args:
             memory_dim (int): how many edges to remember
@@ -59,6 +59,7 @@ class HistoryLoader:
         self.memory_t = torch.zeros((num_nodes, memory_dim), dtype=torch.float32)
         self.memory_edge_index = torch.zeros((num_nodes, memory_dim), dtype=torch.long)
         self.memory_edge_attr = torch.zeros((memory_dim, num_nodes, edge_dim), dtype=torch.float32)
+        self.memory_h_edge_attr = torch.zeros((num_nodes, h_edge_attr_dim), dtype=torch.float32)
         # self.memory_edge_attr = torch.zeros((num_nodes, memory_dim, edge_dim), dtype=torch.float32) 
         # (memory_dim, num_nodes, edge_dim)
 
@@ -66,7 +67,11 @@ class HistoryLoader:
         self.cur_e_id = 0
 
         self.t_encoder = TimeEncoder(memory_dim=memory_dim, time_dim=time_dim)
-        self.m_module = GRUCell(edge_dim, 1)
+        self.m_module = GRUCell(edge_dim, h_edge_attr_dim)
+    
+    def reset_parameters(self):
+        # TODO
+        pass
     
     def retrieve(self, n_id):
         edge_index = self.edge_index(n_id)
@@ -77,16 +82,29 @@ class HistoryLoader:
     
     def insert(self, src_n_id, dst_n_id, t, edge_attr, z):
         self.cur_e_id += src_n_id.shape[0]
+        position = self.memory_dim - 1
+
         for src, dst, node_t, msg in zip(src_n_id, dst_n_id, t, edge_attr):
-            position = self.next_insert_position[src].item()
+            # position = self.next_insert_position[src].item()
 
             self.memory_z[src] = z[src]
-            self.memory_edge_index[src, position] = dst
-            # self.memory_edge_attr[src, position] = msg
-            self.memory_edge_attr[position, src] = msg
-            self.memory_t[src, position] = node_t
+            
+            # move the information from the old position to the new position
+            self.memory_edge_index[src, 0: position] = self.memory_edge_index[src, 1:].clone()
+            self.memory_edge_attr[0: position, src] = self.memory_edge_attr[1:, position].clone()
+            self.memory_t[src, 0: position] = self.memory_t[src, 1:].clone()
 
-            self.next_insert_position[src] = (position + 1) % self.memory_dim
+            # insert the new information
+            self.memory_edge_index[src, -1] = dst
+            self.memory_edge_attr[-1, position] = msg
+            self.memory_t[src, -1] = node_t
+
+            # self.memory_edge_index[src, position] = dst
+            # self.memory_edge_attr[src, position] = msg
+            # self.memory_edge_attr[position, src] = msg
+            # self.memory_t[src, position] = node_t
+
+            # self.next_insert_position[src] = (position + 1) % self.memory_dim
     
     @property
     def z(self):
@@ -114,15 +132,12 @@ class HistoryLoader:
         edge_attr = self.edge_attr(n_id)
 
         for t in range(self.memory_dim):
-            hx = self.m_module(edge_attr[t])
+            print(self.memory_h_edge_attr[n_id])
 
-        return hx
-    #     for 
-    #     return self.m_module()
-        # for idx in n_id:
-        #     node_edge_attr = self.memory_edge_attr[idx]
-        #     node_edge_attr = node_edge_attr[:, 0, None]
-        #     yield self.m_module(node_edge_attr)
+            hx = self.m_module(edge_attr[t], self.memory_h_edge_attr[n_id])
+            self.memory_h_edge_attr[n_id] = hx
+
+        return self.memory_h_edge_attr[n_id]
 
 
 class TimeEncoder(torch.nn.Module):
@@ -137,7 +152,7 @@ class TimeEncoder(torch.nn.Module):
     def forward(self, t):
         return self.lin(t).cos()
 
-# ========= setup dataset ====================================================================
+# ========= setup dataset ===========================================================================================
 dataset = TemporalGraph(root="data2")
 data, x, train_mask, val_mask, test_mask = dataset("tgbl-flight")
 
@@ -146,16 +161,17 @@ data = data.to(device)
 x = x.to(device)
 
 loader = TemporalDataLoader(data[train_mask], batch_size=5, shuffle=False)
-# ========= setup parameters =================================================================
+# ========= setup parameters ========================================================================================
 node_dim = 10       
 edge_dim = 16
-embedd_dim = 20     # embedding dimension for each node
-memory_dim = 20     # how many edges to remember
-time_dim = 10       # using linear transformation to encode memory time into smaller dimension
-# ============================================================================================
+embedd_dim = 20         # embedding dimension for each node
+memory_dim = 100        # how many edges to remember
+time_dim = 5            # using linear transformation to encode memory time into smaller dimension
+h_edge_attr_dim = 3     # hidden state dimension for edge message/edge attr to remember the past interaction
+# ====================================================================================================================
 
-history_loader = HistoryLoader(num_nodes=data.num_nodes, memory_dim=memory_dim, embedd_dim=embedd_dim, time_dim=time_dim, edge_dim=edge_dim)
-model = Net(node_dim=node_dim, edge_dim=edge_dim, embedd_dim=embedd_dim, time_dim=time_dim, his_loader=history_loader)
+history_loader = HistoryLoader(num_nodes=data.num_nodes, memory_dim=memory_dim, embedd_dim=embedd_dim, time_dim=time_dim, edge_dim=edge_dim, h_edge_attr_dim=h_edge_attr_dim)
+model = Net(node_dim=node_dim, edge_dim=edge_dim, embedd_dim=embedd_dim, time_dim=time_dim, his_loader=history_loader, h_edge_attr_dim=h_edge_attr_dim)
 
 for i, batch in enumerate(loader):
 
@@ -163,9 +179,9 @@ for i, batch in enumerate(loader):
     history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
     
     # print(history_loader.edge_attr(batch.n_id).shape)
-    print(history_loader.h_edge_attr(batch.n_id))
+    # print(history_loader.h_edge_attr(batch.n_id))
 
-    break
+    # break
     if i == 100:
         print(z[batch.n_id])
         break
