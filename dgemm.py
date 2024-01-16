@@ -4,11 +4,14 @@ from temporal_graph import TemporalGraph
 from typing import Callable
 
 import torch
-from torch.nn import Linear, GRUCell
+from torch.nn import Linear, GRUCell, GRU
+from torch.functional import F
 
 from torch_geometric.loader import TemporalDataLoader
 from torch_geometric.nn import TransformerConv
 from torch_geometric.nn import MessagePassing
+
+import torch_geometric.utils as utils
 
 class KHopAggregator(MessagePassing):
     def __init__(self, k):
@@ -20,13 +23,49 @@ class KHopAggregator(MessagePassing):
             x = self.propagate(edge_index, x=x)
         return x
 
+class KHopAggregators(MessagePassing):
+    def __init__(self, k):
+        super(KHopAggregator, self).__init__(aggr='add')
+        self.k = k
+    
+    def forward(self, x, edge_index):
+        kx = torch.empty((x.shape[0], x.shape[1], self.k), dtype=torch.float32)
+        for _k in range(self.k):
+            x = self.propagate(edge_index, x=x)
+            kx[:, :, _k] = x
+        
+        return kx
+
+class kHopSelector(torch.nn.Module):
+    def __init__(self, max_k, his_loader):
+        super(kHopSelector, self).__init__()
+        self.his_loader = his_loader
+        self.gru = GRU(input_size=his_loader.memory_dim, hidden_size=1, num_layers=1, batch_first=True)
+        self.lin = Linear(1, max_k)
+
+    def forward(self, n_id, edge_index):
+        memory_edge_index = self.his_loader.edge_index(n_id)
+        edge_index = torch.cat([edge_index, memory_edge_index], dim=1)
+        
+        memory_degrees = self.his_loader.degree(n_id)
+
+        degrees = utils.degree(edge_index[0], dtype=torch.float)[n_id]
+        degrees = degrees.view(-1, 1).expand_as(memory_degrees)
+
+        rel_degrees = degrees - memory_degrees
+
+        x = self.gru(rel_degrees)[0]
+        x = self.lin(x).softmax(dim=-1)
+        
+        return torch.argmax(x, dim=-1)
+
 class Net(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, embedd_dim, time_dim, his_loader, h_edge_attr_dim):
+    def __init__(self, node_dim, edge_dim, embedd_dim, time_dim, his_loader, h_edge_attr_dim, k):
         super(Net, self).__init__()
 
         edge_dim = edge_dim + 2 * (node_dim + time_dim) + h_edge_attr_dim
 
-        self.aggr = KHopAggregator(k=3)
+        self.aggr = KHopAggregator(k=k)
         self.attn = TransformerConv(in_channels=embedd_dim, out_channels=embedd_dim, edge_dim=edge_dim)
 
         self.his_loader = his_loader
@@ -53,6 +92,7 @@ class HistoryLoader:
         """
         self.num_nodes = num_nodes
         self.memory_dim = memory_dim
+        self.time_dim = time_dim
 
         self.memory_z = torch.zeros((num_nodes, embedd_dim), dtype=torch.float32)
 
@@ -60,6 +100,7 @@ class HistoryLoader:
         self.memory_edge_index = torch.zeros((num_nodes, memory_dim), dtype=torch.long)
         self.memory_edge_attr = torch.zeros((memory_dim, num_nodes, edge_dim), dtype=torch.float32)
         self.memory_h_edge_attr = torch.zeros((num_nodes, h_edge_attr_dim), dtype=torch.float32)
+        self.memory_degree = torch.zeros((num_nodes, memory_dim), dtype=torch.float32)
 
         self.next_insert_position = torch.zeros(num_nodes, dtype=torch.long)
         self.cur_e_id = 0
@@ -89,18 +130,20 @@ class HistoryLoader:
             self.memory_edge_index[src, 0: position] = self.memory_edge_index[src, 1:].clone()
             self.memory_edge_attr[0: position, src] = self.memory_edge_attr[1:, position].clone()
             self.memory_t[src, 0: position] = self.memory_t[src, 1:].clone()
+            self.memory_degree[src, 0: position] = self.memory_degree[src, 1:].clone()
 
             # insert the new information
             self.memory_edge_index[src, -1] = dst
             self.memory_edge_attr[-1, position] = msg
             self.memory_t[src, -1] = node_t
+            self.memory_degree[src, -1] = utils.degree(self.edge_index(torch.arange(self.num_nodes))[0], dtype=torch.float)[src]
     
     @property
     def z(self):
         return self.memory_z
 
     def t(self, n_id):
-        return self.memory_t[n_id]#.float()
+        return self.memory_t[n_id]
 
     def enc_t(self, n_id):
         return self.t_encoder(self.t(n_id))
@@ -127,6 +170,9 @@ class HistoryLoader:
             self.memory_h_edge_attr[n_id] = hx
 
         return self.memory_h_edge_attr[n_id]
+    
+    def degree(self, n_id):
+        return self.memory_degree[n_id]
 
 
 class TimeEncoder(torch.nn.Module):
@@ -149,8 +195,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 data = data.to(device)
 x = x.to(device)
 
-loader = TemporalDataLoader(data[train_mask], batch_size=5, shuffle=False)
+loader = TemporalDataLoader(data[train_mask], batch_size=100, shuffle=False)
 # ========= setup parameters ========================================================================================
+k = 3               # how many hops to aggregate
 node_dim = 10       
 edge_dim = 16
 embedd_dim = 20     # embedding dimension for each node
@@ -160,14 +207,17 @@ h_edge_attr_dim = 3 # hidden state dimension for edge message/edge attr to remem
 # ====================================================================================================================
 
 history_loader = HistoryLoader(num_nodes=data.num_nodes, memory_dim=memory_dim, embedd_dim=embedd_dim, time_dim=time_dim, edge_dim=edge_dim, h_edge_attr_dim=h_edge_attr_dim)
-model = Net(node_dim=node_dim, edge_dim=edge_dim, embedd_dim=embedd_dim, time_dim=time_dim, his_loader=history_loader, h_edge_attr_dim=h_edge_attr_dim)
+model = Net(node_dim=node_dim, edge_dim=edge_dim, embedd_dim=embedd_dim, time_dim=time_dim, his_loader=history_loader, h_edge_attr_dim=h_edge_attr_dim, k=k)
+k_hop_sel = kHopSelector(max_k=k, his_loader=history_loader)
 
 for i, batch in enumerate(loader):
 
-    z = model(x=x, n_id=batch.n_id, edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst)
+    
+    z = model(x=x, n_id=torch.arange(data.num_nodes), edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst)
     history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
+    o = k_hop_sel(batch.src, batch.edge_index)
 
-    # break
     if i == 100:
-        print(z[batch.n_id])
+        # print(z[batch.n_id])
+        print(o)
         break
