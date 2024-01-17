@@ -25,39 +25,49 @@ class KHopAggregator(MessagePassing):
 
 class KHopAggregators(MessagePassing):
     def __init__(self, k):
-        super(KHopAggregator, self).__init__(aggr='add')
+        super(KHopAggregators, self).__init__(aggr='add')
         self.k = k
     
     def forward(self, x, edge_index):
-        kx = torch.empty((x.shape[0], x.shape[1], self.k), dtype=torch.float32)
-        for _k in range(self.k):
-            x = self.propagate(edge_index, x=x)
-            kx[:, :, _k] = x
+        # create an empty tensor to store different hop aggregation results
+        k_hop_x = torch.zeros((self.k, x.shape[0], x.shape[1]), dtype=torch.float32)
+        for k in range(self.k):
+            k_hop_x[k] = self.propagate(edge_index, x=x, k=k)
         
-        return kx
+        return k_hop_x
 
 class kHopSelector(torch.nn.Module):
-    def __init__(self, max_k, his_loader):
+    def __init__(self, max_k, his_loader, num_nodes):
         super(kHopSelector, self).__init__()
+        self.n_id = torch.arange(num_nodes)
+        self.k_for_each_node = torch.ones(num_nodes, dtype=torch.long)
+        
         self.his_loader = his_loader
+        
         self.gru = GRU(input_size=his_loader.memory_dim, hidden_size=1, num_layers=1, batch_first=True)
         self.lin = Linear(1, max_k)
 
-    def forward(self, n_id, edge_index):
-        memory_edge_index = self.his_loader.edge_index(n_id)
-        edge_index = torch.cat([edge_index, memory_edge_index], dim=1)
+    def forward(self, n_id):
+        # retrieve the memory information
+        memory_edge_index = self.his_loader.edge_index(self.n_id)
+        memory_degree = self.his_loader.degree(self.n_id)
         
-        memory_degrees = self.his_loader.degree(n_id)
+        latest_degree = memory_degree[:, -1]
+        latest_degree[:int(memory_edge_index[0].max())+1] = utils.degree(memory_edge_index[0], dtype=torch.float)
+        
+        latest_degree = latest_degree.view(-1, 1).expand_as(memory_degree)
 
-        degrees = utils.degree(edge_index[0], dtype=torch.float)[n_id]
-        degrees = degrees.view(-1, 1).expand_as(memory_degrees)
-
-        rel_degrees = degrees - memory_degrees
+        # compute the relative degree
+        rel_degrees = latest_degree - memory_degree
 
         x = self.gru(rel_degrees)[0]
         x = self.lin(x).softmax(dim=-1)
-        
-        return torch.argmax(x, dim=-1)
+
+        # output the k for each node
+        _k_for_each_node = torch.argmax(x, dim=-1) + 1
+        self.k_for_each_node[n_id] = _k_for_each_node[n_id]
+
+        return self.k_for_each_node
 
 class Net(torch.nn.Module):
     def __init__(self, node_dim, edge_dim, embedd_dim, time_dim, his_loader, h_edge_attr_dim, k):
@@ -65,15 +75,19 @@ class Net(torch.nn.Module):
 
         edge_dim = edge_dim + 2 * (node_dim + time_dim) + h_edge_attr_dim
 
-        self.aggr = KHopAggregator(k=k)
+        self.aggr = KHopAggregators(k=k)
         self.attn = TransformerConv(in_channels=embedd_dim, out_channels=embedd_dim, edge_dim=edge_dim)
 
         self.his_loader = his_loader
 
-    def forward(self, x, n_id, src_n_id, dst_n_id, edge_index, edge_attr, t):
+    def forward(self, x, n_id, src_n_id, dst_n_id, edge_index, edge_attr, t, k):
 
         m_edge_index = torch.cat([edge_index, self.his_loader.edge_index(n_id)], dim=1)
-        x = self.aggr(x, m_edge_index)
+
+        print(k)
+
+        k_hop_x = self.aggr(x, m_edge_index)
+        x = k_hop_x[k, torch.arange(k_hop_x.size(1)), :]
 
         src_enc_t, dst_enc_t = self.his_loader.enc_t(src_n_id), self.his_loader.enc_t(dst_n_id)
         t = t.view(-1, 1).expand_as(src_enc_t)
@@ -195,7 +209,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 data = data.to(device)
 x = x.to(device)
 
-loader = TemporalDataLoader(data[train_mask], batch_size=100, shuffle=False)
+loader = TemporalDataLoader(data[train_mask], batch_size=10, shuffle=False)
 # ========= setup parameters ========================================================================================
 k = 3               # how many hops to aggregate
 node_dim = 10       
@@ -208,16 +222,20 @@ h_edge_attr_dim = 3 # hidden state dimension for edge message/edge attr to remem
 
 history_loader = HistoryLoader(num_nodes=data.num_nodes, memory_dim=memory_dim, embedd_dim=embedd_dim, time_dim=time_dim, edge_dim=edge_dim, h_edge_attr_dim=h_edge_attr_dim)
 model = Net(node_dim=node_dim, edge_dim=edge_dim, embedd_dim=embedd_dim, time_dim=time_dim, his_loader=history_loader, h_edge_attr_dim=h_edge_attr_dim, k=k)
-k_hop_sel = kHopSelector(max_k=k, his_loader=history_loader)
+k_hop_sel = kHopSelector(max_k=k, his_loader=history_loader, num_nodes=data.num_nodes)
+
 
 for i, batch in enumerate(loader):
 
-    
-    z = model(x=x, n_id=torch.arange(data.num_nodes), edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst)
+    if i == 0:
+        k_for_each_node = k_hop_sel.k_for_each_node
+    else:
+        k_for_each_node = k_hop_sel(n_id=batch.src)
+        
+    z = model(x=x, n_id=torch.arange(data.num_nodes), edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst, k=k_for_each_node)
     history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
-    o = k_hop_sel(batch.src, batch.edge_index)
 
     if i == 100:
-        # print(z[batch.n_id])
-        print(o)
+        print(z[batch.n_id])
+        print(k_for_each_node)
         break
