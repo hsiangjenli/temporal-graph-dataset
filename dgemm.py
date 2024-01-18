@@ -83,9 +83,6 @@ class Net(torch.nn.Module):
     def forward(self, x, n_id, src_n_id, dst_n_id, edge_index, edge_attr, t, k):
 
         m_edge_index = torch.cat([edge_index, self.his_loader.edge_index(n_id)], dim=1)
-
-        print(k)
-
         k_hop_x = self.aggr(x, m_edge_index)
         x = k_hop_x[k, torch.arange(k_hop_x.size(1)), :]
 

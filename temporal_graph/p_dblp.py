@@ -32,3 +32,6 @@ def author_permutations(row):
         return list(permutations(row, 2))
     else:
         return row
+
+if __name__ == "__main__":
+    pass
