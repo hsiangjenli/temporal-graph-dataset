@@ -20,19 +20,19 @@ pip install [TODO]
 
 ## How to use
 ```python
-from temporal_graph import TemporalGraph
+from temporal_graph import TemporalGraphDataset
 
-tg_dataset = TemporalGraph(root="data")
+tgd = TemporalGraphDataset(root="data")
 ```
 
 ### List available datasets
 ```python
-tg_dataset.available_datasets
+tgd.available_datasets
 ```
 
 ### Get a dataset
 ```python
-
+data, x, train_mask, val_mask, test_mask = tgd("tgbl-flight")
 ```
 
 ### TemporalGraphLoader
@@ -43,7 +43,8 @@ tg_dataset.available_datasets
 ```
 
 ## How I preprocess the dataset
-- `p_{dataset_name}.py` is a Python script to preprocess the dataset.
+- `temporal_graph/preprocess/p_{dataset_name}.py` is a Python script to preprocess the dataset. To see the details, please check the **Makefile**.
+
 
 ## Credit to ..
 - Dataset for "Towards Better Evaluation for Dynamic Link Prediction"

@@ -1,33 +1,21 @@
-from temporal_graph import TemporalGraph
+from temporal_graph import TemporalGraphDataset
 from torch_geometric.loader import TemporalDataLoader
 import numpy as np
 
-tg_dataset = TemporalGraph(root="data2")
-# print(tg_dataset.available_datasets)
-data, x, train_mask, val_mask, test_mask = tg_dataset("tgbl-coin")
+tgd = TemporalGraphDataset(root="data_demo")
+
+for dataset_name in tgd.available_datasets:
+    print(f"Downloading {dataset_name}...")
+    tgd.download(dataset_name)
+    print(f"Downloaded {dataset_name}!")
+
+data, x, train_mask, val_mask, test_mask = tgd("tgbl-flight")
 print(data)
 print(x)
 print(data[train_mask])
 
-loader = TemporalDataLoader(data, batch_size=1, shuffle=False)
+loader = TemporalDataLoader(data, batch_size=100, shuffle=False)
 
 for batch in loader:
     print(batch)
     break
-
-data, x, train_mask, val_mask, test_mask = tg_dataset("tgbl-flight")
-print(data)
-print(x)
-print(data[train_mask])
-
-loader = TemporalDataLoader(data, batch_size=1, shuffle=False)
-
-for batch in loader:
-    print(batch)
-    break
-
-# for dataset_name in tg_data.available_datasets:
-#     print(f"Downloading {dataset_name}...")
-#     data = tg_data(dataset_name)
-#     print(data)
-#     print(f"Downloaded {dataset_name}!")

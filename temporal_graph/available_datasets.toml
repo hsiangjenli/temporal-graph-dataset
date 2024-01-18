@@ -1,29 +1,19 @@
-[enron]
-    name = "enron"
-    src = "me"
-    href = "1eHoOsq9AgQLbAHDEpT8ZdyampgRku_Y3"
+[eed]
+    name = "eed"
+    raw = "https://www.kaggle.com/datasets/wcukierski/enron-email-dataset/"
+    href = "1Kaeu8SKENMlUkT66qTltmgHirXeXwXIp"
 
-# [USLegis]
-#     name = "USLegis"
-#     src = "zenodo"
-#     href = "https://zenodo.org/records/7213796/files/USLegis.zip"
-
-# [UNtrade]
-#     name = "UNtrade"
-#     src = "zenodo"
-#     href = "https://zenodo.org/records/7213796/files/UNtrade.zip"
-
-[DBLP]
-    name = "DBLP"
-    src = "me"
-    href = ""
+[dblp]
+    name = "dblp"
+    raw = ""
+    href = "1KYP3m6WVo9bb3igcGGZMLOdAokAt67jn"
 
 [tgbl-flight]
     name = "tgbl-flight"
-    src = "tgb"
+    raw = "TGB"
     href = "1eJ1LVd-IewkKc5PG-67vRCJlMKTvV9mI"
 
 [tgbl-coin]
     name = "tgbl-coin"
-    src = "tgb"
+    raw = "TGB"
     href = "1eKa9fD0OvG7cEgheeffy1J1xFFQIGQtN"

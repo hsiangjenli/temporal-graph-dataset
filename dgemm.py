@@ -1,5 +1,5 @@
 
-from temporal_graph import TemporalGraph
+from temporal_graph import TemporalGraphDataset
 
 from typing import Callable
 
@@ -84,7 +84,7 @@ class Net(torch.nn.Module):
 
         m_edge_index = torch.cat([edge_index, self.his_loader.edge_index(n_id)], dim=1)
         k_hop_x = self.aggr(x, m_edge_index)
-        x = k_hop_x[k, torch.arange(k_hop_x.size(1)), :]
+        x = k_hop_x[k, torch.arange(1), :]
 
         src_enc_t, dst_enc_t = self.his_loader.enc_t(src_n_id), self.his_loader.enc_t(dst_n_id)
         t = t.view(-1, 1).expand_as(src_enc_t)
@@ -199,8 +199,8 @@ class TimeEncoder(torch.nn.Module):
         return self.lin(t).cos()
 
 # ========= setup dataset ===========================================================================================
-dataset = TemporalGraph(root="data2")
-data, x, train_mask, val_mask, test_mask = dataset("tgbl-flight")
+dataset = TemporalGraphDataset(root="data")
+data, x, train_mask, val_mask, test_mask = dataset("eed")
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 data = data.to(device)
@@ -209,8 +209,8 @@ x = x.to(device)
 loader = TemporalDataLoader(data[train_mask], batch_size=10, shuffle=False)
 # ========= setup parameters ========================================================================================
 k = 3               # how many hops to aggregate
-node_dim = 10       
-edge_dim = 16
+node_dim = x.shape[1]       
+edge_dim = data.msg.shape[1]
 embedd_dim = 20     # embedding dimension for each node
 memory_dim = 100    # how many edges to remember
 time_dim = 5        # using linear transformation to encode memory time into smaller dimension
