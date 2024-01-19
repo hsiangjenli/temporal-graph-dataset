@@ -1,16 +1,16 @@
 
+from tqdm import tqdm
 from temporal_graph import TemporalGraphDataset
-
-from typing import Callable
+from linkpredictor import SimpleLinkPredictor
 
 import torch
 from torch.nn import Linear, GRUCell, GRU
 from torch.functional import F
+import torch.multiprocessing as mp
 
 from torch_geometric.loader import TemporalDataLoader
 from torch_geometric.nn import TransformerConv
 from torch_geometric.nn import MessagePassing
-
 import torch_geometric.utils as utils
 
 class KHopAggregator(MessagePassing):
@@ -30,7 +30,11 @@ class KHopAggregators(MessagePassing):
     
     def forward(self, x, edge_index):
         k_hop_x = torch.zeros((self.k, x.shape[0], x.shape[1]), dtype=torch.float32)
+        
         for k in range(self.k):
+            if k != 0:
+                x = k_hop_x[k-1]
+            
             k_hop_x[k] = self.propagate(edge_index, x=x)
         
         return k_hop_x
@@ -42,7 +46,7 @@ class kHopSelector(torch.nn.Module):
 
         # -- init and register the k for each node
         # -- if you don't want to update the k during testing, you can simply treat it as a relative good k for each node --
-        self.register_buffer('k_for_each_node', torch.empty((num_nodes), dtype=torch.long))
+        self.register_buffer('k_for_each_node', torch.ones((num_nodes), dtype=torch.long))
         
         self.his_loader = his_loader
         
@@ -50,7 +54,7 @@ class kHopSelector(torch.nn.Module):
         self.lin = Linear(1, max_k)
 
     def forward(self, n_id):
-        # retrieve the memory information --------------------------------
+        # -- retrieve the memory information --------------------------------
         memory_edge_index = self.his_loader.edge_index(self.n_id)
         memory_degree = self.his_loader.degree(self.n_id)
         
@@ -67,7 +71,7 @@ class kHopSelector(torch.nn.Module):
 
         # -- output the k for each node -----------------------------------
         _k_for_each_node = torch.argmax(x, dim=-1) + 1
-        self.k_for_each_node[n_id] = _k_for_each_node[n_id]
+        self.k_for_each_node[self.n_id] = _k_for_each_node[self.n_id]
 
         return self.k_for_each_node
 
@@ -86,7 +90,7 @@ class Net(torch.nn.Module):
 
         m_edge_index = torch.cat([edge_index, self.his_loader.edge_index(n_id)], dim=1)
         k_hop_x = self.aggr(x, m_edge_index)
-        x = k_hop_x[k, torch.arange(1), :]
+        x = k_hop_x[k]
 
         src_enc_t, dst_enc_t = self.his_loader.enc_t(src_n_id), self.his_loader.enc_t(dst_n_id)
         t = t.view(-1, 1).expand_as(src_enc_t)
@@ -144,13 +148,13 @@ class HistoryLoader(torch.nn.Module):
         for src, dst, node_t, msg in zip(src_n_id, dst_n_id, t, edge_attr):
             self.memory_z[src] = z[src]
             
-            # move the information from the old position to the new position
+            # -- move the information from the old position to the new position
             self.memory_edge_index[src, 0: position] = self.memory_edge_index[src, 1:].clone()
             self.memory_edge_attr[0: position, src] = self.memory_edge_attr[1:, position].clone()
             self.memory_t[src, 0: position] = self.memory_t[src, 1:].clone()
             self.memory_degree[src, 0: position] = self.memory_degree[src, 1:].clone()
 
-            # insert the new information
+            # -- insert the new information
             self.memory_edge_index[src, -1] = dst
             self.memory_edge_attr[-1, position] = msg
             self.memory_t[src, -1] = node_t
@@ -212,14 +216,14 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 data = data.to(device)
 x = x.to(device)
 
-loader = TemporalDataLoader(data[train_mask], batch_size=10, shuffle=False)
+loader = TemporalDataLoader(data[train_mask], batch_size=100, neg_sampling_ratio=1.0)
 # ========= setup parameters ========================================================================================
 epochs = 2
 k = 3               # how many hops to aggregate
 node_dim = x.shape[1]       
 edge_dim = data.msg.shape[1]
 embedd_dim = 20     # embedding dimension for each node
-memory_dim = 100    # how many edges to remember
+memory_dim = 10     # how many edges to remember
 time_dim = 5        # using linear transformation to encode memory time into smaller dimension
 h_edge_attr_dim = 3 # hidden state dimension for edge message/edge attr to remember the past interaction
 # ====================================================================================================================
@@ -227,20 +231,44 @@ h_edge_attr_dim = 3 # hidden state dimension for edge message/edge attr to remem
 history_loader = HistoryLoader(num_nodes=data.num_nodes, memory_dim=memory_dim, embedd_dim=embedd_dim, time_dim=time_dim, edge_dim=edge_dim, h_edge_attr_dim=h_edge_attr_dim)
 model = Net(node_dim=node_dim, edge_dim=edge_dim, embedd_dim=embedd_dim, time_dim=time_dim, his_loader=history_loader, h_edge_attr_dim=h_edge_attr_dim, k=k)
 k_hop_sel = kHopSelector(max_k=k, his_loader=history_loader, num_nodes=data.num_nodes)
+predictor = SimpleLinkPredictor(in_channels=embedd_dim)
 
+criterion = torch.nn.BCEWithLogitsLoss()
+optimizer = torch.optim.Adam(list(predictor.parameters()), lr=0.01)
 
-for e in range(epochs):
+total_loss = 0
+history_loader.reset_parameters()
 
-    history_loader.reset_parameters()
+for i, batch in enumerate(loader):
 
-    for i, batch in enumerate(loader):
-
+    if i == 0:
+        k_for_each_node = k_hop_sel.k_for_each_node
+    else:
         k_for_each_node = k_hop_sel(n_id=batch.src)
-            
-        z = model(x=x, n_id=torch.arange(data.num_nodes), edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst, k=k_for_each_node)
-        history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
+        
+    z = model(x=x, n_id=torch.arange(data.num_nodes), edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst, k=k_for_each_node)
+    history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
 
-        if i == 100:
-            print(z[batch.n_id])
-            print(k_for_each_node)
-            break
+    print(z)
+    break
+
+    if i == 3:
+        print(z)
+        break
+        
+#         pos_pred = predictor(z[batch.src], z[batch.dst])
+#         neg_pred = predictor(z[batch.src], z[batch.neg_dst])
+
+#         pos_loss = criterion(pos_pred, torch.ones_like(pos_pred))
+#         neg_loss = criterion(neg_pred, torch.zeros_like(neg_pred))
+
+#         loss = pos_loss + neg_loss
+#         total_loss += loss.item()
+
+#         if i == 3:
+#             break
+    
+#         # loss.backward()
+#         # optimizer.step()
+#     print(f"Epoch {e} | Loss {total_loss / len(train_mask)}")
+# mp.get_context('spawn')._decref()
