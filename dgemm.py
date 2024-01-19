@@ -24,15 +24,14 @@ class KHopAggregator(MessagePassing):
         return x
 
 class KHopAggregators(MessagePassing):
-    def __init__(self, k):
-        super(KHopAggregators, self).__init__(aggr='add')
+    def __init__(self, k, aggr='add'):
+        super(KHopAggregators, self).__init__(aggr=aggr)
         self.k = k
     
     def forward(self, x, edge_index):
-        # create an empty tensor to store different hop aggregation results
         k_hop_x = torch.zeros((self.k, x.shape[0], x.shape[1]), dtype=torch.float32)
         for k in range(self.k):
-            k_hop_x[k] = self.propagate(edge_index, x=x, k=k)
+            k_hop_x[k] = self.propagate(edge_index, x=x)
         
         return k_hop_x
 
@@ -40,7 +39,10 @@ class kHopSelector(torch.nn.Module):
     def __init__(self, max_k, his_loader, num_nodes):
         super(kHopSelector, self).__init__()
         self.n_id = torch.arange(num_nodes)
-        self.k_for_each_node = torch.ones(num_nodes, dtype=torch.long)
+
+        # -- init and register the k for each node
+        # -- if you don't want to update the k during testing, you can simply treat it as a relative good k for each node --
+        self.register_buffer('k_for_each_node', torch.empty((num_nodes), dtype=torch.long))
         
         self.his_loader = his_loader
         
@@ -48,7 +50,7 @@ class kHopSelector(torch.nn.Module):
         self.lin = Linear(1, max_k)
 
     def forward(self, n_id):
-        # retrieve the memory information
+        # retrieve the memory information --------------------------------
         memory_edge_index = self.his_loader.edge_index(self.n_id)
         memory_degree = self.his_loader.degree(self.n_id)
         
@@ -57,13 +59,13 @@ class kHopSelector(torch.nn.Module):
         
         latest_degree = latest_degree.view(-1, 1).expand_as(memory_degree)
 
-        # compute the relative degree
+        # -- compute the relative degree ----------------------------------
         rel_degrees = latest_degree - memory_degree
 
         x = self.gru(rel_degrees)[0]
         x = self.lin(x).softmax(dim=-1)
 
-        # output the k for each node
+        # -- output the k for each node -----------------------------------
         _k_for_each_node = torch.argmax(x, dim=-1) + 1
         self.k_for_each_node[n_id] = _k_for_each_node[n_id]
 
@@ -95,33 +97,38 @@ class Net(torch.nn.Module):
 
         return self.attn(self.his_loader.z, edge_index, edge_attr)
 
-class HistoryLoader:
+class HistoryLoader(torch.nn.Module):
     def __init__(self, num_nodes, edge_dim, memory_dim, embedd_dim, time_dim, h_edge_attr_dim):
-        """
-        Args:
-            memory_dim (int): how many edges to remember
-        """
+
+        super(HistoryLoader, self).__init__()
+
         self.num_nodes = num_nodes
         self.memory_dim = memory_dim
-        self.time_dim = time_dim
 
-        self.memory_z = torch.zeros((num_nodes, embedd_dim), dtype=torch.float32)
+        # -- init and register the memory -----------------------------------
+        self.register_buffer('memory_z', torch.zeros((num_nodes, embedd_dim), dtype=torch.float32))
+        self.register_buffer('memory_t', torch.zeros((num_nodes, memory_dim), dtype=torch.float32))
+        self.register_buffer('memory_edge_index', torch.zeros((num_nodes, memory_dim), dtype=torch.long))
+        self.register_buffer('memory_edge_attr', torch.zeros((memory_dim, num_nodes, edge_dim), dtype=torch.float32))
+        self.register_buffer('memory_h_edge_attr', torch.zeros((num_nodes, h_edge_attr_dim), dtype=torch.float32))
+        self.register_buffer('memory_degree', torch.zeros((num_nodes, memory_dim), dtype=torch.float32))
 
-        self.memory_t = torch.zeros((num_nodes, memory_dim), dtype=torch.float32)
-        self.memory_edge_index = torch.zeros((num_nodes, memory_dim), dtype=torch.long)
-        self.memory_edge_attr = torch.zeros((memory_dim, num_nodes, edge_dim), dtype=torch.float32)
-        self.memory_h_edge_attr = torch.zeros((num_nodes, h_edge_attr_dim), dtype=torch.float32)
-        self.memory_degree = torch.zeros((num_nodes, memory_dim), dtype=torch.float32)
-
-        self.next_insert_position = torch.zeros(num_nodes, dtype=torch.long)
         self.cur_e_id = 0
 
         self.t_encoder = TimeEncoder(memory_dim=memory_dim, time_dim=time_dim)
         self.m_module = GRUCell(edge_dim, h_edge_attr_dim)
-    
+
     def reset_parameters(self):
-        # TODO
-        pass
+        self.t_encoder.reset_parameters()
+        self.m_module.reset_parameters()
+
+        # -- reset the memory ----------------------------------------------
+        self.memory_z = self.memory_z.zero_()
+        self.memory_t = self.memory_t.zero_()
+        self.memory_edge_index = self.memory_edge_index.zero_()
+        self.memory_edge_attr = self.memory_edge_attr.zero_()
+        self.memory_h_edge_attr = self.memory_h_edge_attr.zero_()
+        self.memory_degree = self.memory_degree.zero_()
     
     def retrieve(self, n_id):
         edge_index = self.edge_index(n_id)
@@ -171,12 +178,11 @@ class HistoryLoader:
     def edge_attr(self, n_id):
         return self.memory_edge_attr[:, n_id, :]
     
+    @torch.no_grad()
     def h_edge_attr(self, n_id):
         edge_attr = self.edge_attr(n_id)
 
         for t in range(self.memory_dim):
-            print(self.memory_h_edge_attr[n_id])
-
             hx = self.m_module(edge_attr[t], self.memory_h_edge_attr[n_id])
             self.memory_h_edge_attr[n_id] = hx
 
@@ -208,6 +214,7 @@ x = x.to(device)
 
 loader = TemporalDataLoader(data[train_mask], batch_size=10, shuffle=False)
 # ========= setup parameters ========================================================================================
+epochs = 2
 k = 3               # how many hops to aggregate
 node_dim = x.shape[1]       
 edge_dim = data.msg.shape[1]
@@ -222,17 +229,18 @@ model = Net(node_dim=node_dim, edge_dim=edge_dim, embedd_dim=embedd_dim, time_di
 k_hop_sel = kHopSelector(max_k=k, his_loader=history_loader, num_nodes=data.num_nodes)
 
 
-for i, batch in enumerate(loader):
+for e in range(epochs):
 
-    if i == 0:
-        k_for_each_node = k_hop_sel.k_for_each_node
-    else:
+    history_loader.reset_parameters()
+
+    for i, batch in enumerate(loader):
+
         k_for_each_node = k_hop_sel(n_id=batch.src)
-        
-    z = model(x=x, n_id=torch.arange(data.num_nodes), edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst, k=k_for_each_node)
-    history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
+            
+        z = model(x=x, n_id=torch.arange(data.num_nodes), edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst, k=k_for_each_node)
+        history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
 
-    if i == 100:
-        print(z[batch.n_id])
-        print(k_for_each_node)
-        break
+        if i == 100:
+            print(z[batch.n_id])
+            print(k_for_each_node)
+            break
