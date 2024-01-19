@@ -4,6 +4,7 @@ from temporal_graph import TemporalGraphDataset
 from linkpredictor import SimpleLinkPredictor
 
 import torch
+import torch.autograd as autograd
 from torch.nn import Linear, GRUCell, GRU
 from torch.functional import F
 import torch.multiprocessing as mp
@@ -67,7 +68,7 @@ class kHopSelector(torch.nn.Module):
         rel_degrees = latest_degree - memory_degree
 
         x = self.gru(rel_degrees)[0]
-        x = self.lin(x).softmax(dim=-1)
+        x = self.lin(x).softmax(dim=-1).clone()
 
         # -- output the k for each node -----------------------------------
         _k_for_each_node = torch.argmax(x, dim=-1) + 1
@@ -90,16 +91,18 @@ class Net(torch.nn.Module):
 
         m_edge_index = torch.cat([edge_index, self.his_loader.edge_index(n_id)], dim=1)
         k_hop_x = self.aggr(x, m_edge_index)
-        x = k_hop_x[k]
+        best_k_hop_x = k_hop_x[k-1, torch.arange(x.shape[0])].clone()
 
         src_enc_t, dst_enc_t = self.his_loader.enc_t(src_n_id), self.his_loader.enc_t(dst_n_id)
         t = t.view(-1, 1).expand_as(src_enc_t)
         src_rel_t = t - src_enc_t
         dst_rel_t = t - dst_enc_t
 
-        edge_attr = torch.cat([edge_attr, src_rel_t, dst_rel_t, x[src_n_id], x[dst_n_id], self.his_loader.h_edge_attr(src_n_id)], dim=-1)
+        edge_attr = torch.cat([edge_attr, src_rel_t, dst_rel_t, best_k_hop_x[src_n_id], best_k_hop_x[dst_n_id], self.his_loader.h_edge_attr(src_n_id)], dim=-1)
 
-        return self.attn(self.his_loader.z, edge_index, edge_attr)
+        z = self.attn(self.his_loader.z.clone(), edge_index, edge_attr).clone()
+
+        return z
 
 class HistoryLoader(torch.nn.Module):
     def __init__(self, num_nodes, edge_dim, memory_dim, embedd_dim, time_dim, h_edge_attr_dim):
@@ -218,6 +221,7 @@ x = x.to(device)
 
 loader = TemporalDataLoader(data[train_mask], batch_size=100, neg_sampling_ratio=1.0)
 # ========= setup parameters ========================================================================================
+
 epochs = 2
 k = 3               # how many hops to aggregate
 node_dim = x.shape[1]       
@@ -226,6 +230,11 @@ embedd_dim = 20     # embedding dimension for each node
 memory_dim = 10     # how many edges to remember
 time_dim = 5        # using linear transformation to encode memory time into smaller dimension
 h_edge_attr_dim = 3 # hidden state dimension for edge message/edge attr to remember the past interaction
+
+print(f"Number of nodes: {data.num_nodes}")
+print(f"Number of node features: {node_dim}")
+print(f"Number of edge features: {edge_dim}")
+
 # ====================================================================================================================
 
 history_loader = HistoryLoader(num_nodes=data.num_nodes, memory_dim=memory_dim, embedd_dim=embedd_dim, time_dim=time_dim, edge_dim=edge_dim, h_edge_attr_dim=h_edge_attr_dim)
@@ -237,38 +246,37 @@ criterion = torch.nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(list(predictor.parameters()), lr=0.01)
 
 total_loss = 0
-history_loader.reset_parameters()
 
-for i, batch in enumerate(loader):
 
-    if i == 0:
-        k_for_each_node = k_hop_sel.k_for_each_node
-    else:
-        k_for_each_node = k_hop_sel(n_id=batch.src)
+
+with torch.autograd.detect_anomaly():
+    for e in range(epochs):
+        history_loader.reset_parameters()
         
-    z = model(x=x, n_id=torch.arange(data.num_nodes), edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst, k=k_for_each_node)
-    history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
+        for i, batch in enumerate(loader):
 
-    print(z)
-    break
+            optimizer.zero_grad()
 
-    if i == 3:
-        print(z)
-        break
+            if i == 0:
+                k_for_each_node = k_hop_sel.k_for_each_node
+            else:
+                k_for_each_node = k_hop_sel(n_id=batch.src)
+                
+            z = model(x=x, n_id=torch.arange(data.num_nodes), edge_index=batch.edge_index, edge_attr=batch.msg, t=batch.t, src_n_id=batch.src, dst_n_id=batch.dst, k=k_for_each_node)
+            
+            pos_pred = predictor(z[batch.src], z[batch.dst])
+            neg_pred = predictor(z[batch.src], z[batch.neg_dst])
+
+            pos_loss = criterion(pos_pred, torch.ones_like(pos_pred))
+            neg_loss = criterion(neg_pred, torch.zeros_like(neg_pred))
+
+            loss = pos_loss + neg_loss
+            total_loss += loss.item()
+
+            grads = autograd.grad(loss, model.parameters(), retain_graph=True, allow_unused=True)
+
+            optimizer.step()
+
+            history_loader.insert(src_n_id=batch.src, dst_n_id=batch.dst, t=batch.t, edge_attr=batch.msg, z=z)
         
-#         pos_pred = predictor(z[batch.src], z[batch.dst])
-#         neg_pred = predictor(z[batch.src], z[batch.neg_dst])
-
-#         pos_loss = criterion(pos_pred, torch.ones_like(pos_pred))
-#         neg_loss = criterion(neg_pred, torch.zeros_like(neg_pred))
-
-#         loss = pos_loss + neg_loss
-#         total_loss += loss.item()
-
-#         if i == 3:
-#             break
-    
-#         # loss.backward()
-#         # optimizer.step()
-#     print(f"Epoch {e} | Loss {total_loss / len(train_mask)}")
-# mp.get_context('spawn')._decref()
+        print(f"Epoch {e} | Loss {total_loss / len(train_mask)}")
