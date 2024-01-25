@@ -48,11 +48,11 @@ if __name__ == "__main__":
         input="raw", 
         output="data", 
         dataset_name="pseudo_data",
-        num_nodes=100,
+        num_nodes=50,
         num_edges=1000,
         node_feat_dim=10,
         edge_type=10,
-        t=20
+        t=50
     )
     
     pseudo.save()
