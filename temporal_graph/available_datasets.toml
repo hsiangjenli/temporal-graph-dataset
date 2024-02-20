@@ -1,6 +1,6 @@
 [eed]
     name = "eed"
-    raw = "https://www.kaggle.com/datasets/wcukierski/enron-email-dataset/"
+    raw = "https://www.kaggle.com/datasets/tarun42/enron-clean/data"
     href = "1Kaeu8SKENMlUkT66qTltmgHirXeXwXIp"
 
 [dblp]

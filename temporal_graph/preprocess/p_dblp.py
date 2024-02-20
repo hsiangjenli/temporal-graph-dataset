@@ -46,9 +46,9 @@ class DBLPPreprocessing(Preprocessing):
             return row
 
     @staticmethod
-    def author_permutations(row):
+    def author_to_list_dir(row):
         if isinstance(row, list):
-            return list(permutations(row, 2))
+            return [[row[i], row[i+1]] for i in range(len(row)-1)]
         else:
             return row
     
@@ -73,9 +73,9 @@ class DBLPPreprocessing(Preprocessing):
         df_edge_feat["t"] = df_edge_feat["year"] * 1000 + round(df_edge_feat["month"]/12 * 100)
         df_edge_feat["t"] = df_edge_feat["t"].apply(lambda x: int(x))
 
-        df_edge_feat["author_permutations"] = df_edge_feat["author"].apply(DBLPPreprocessing.author_permutations)
+        df_edge_feat["author_to_list_dir"] = df_edge_feat["author"].apply(DBLPPreprocessing.author_to_list_dir)
 
-        df_edge_feat = df_edge_feat.explode("author_permutations")
+        df_edge_feat = df_edge_feat.explode("author_to_list_dir")
 
         df_edge_feat.dropna(inplace=True)
         df_edge_feat.sort_values(by=["t"], inplace=True)
@@ -84,7 +84,7 @@ class DBLPPreprocessing(Preprocessing):
         df_edge_feat = pd.concat(
         [
             pd.DataFrame(
-                df_edge_feat["author_permutations"].to_list(), columns=["src", "dst"]),
+                df_edge_feat["author_to_list_dir"].to_list(), columns=["src", "dst"]),
                 df_edge_feat["msg"],
                 df_edge_feat["t"]
         ], axis=1

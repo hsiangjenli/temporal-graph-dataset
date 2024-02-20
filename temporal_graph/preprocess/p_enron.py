@@ -1,106 +1,127 @@
 import re
 import pandas as pd
 import numpy as np
-from dateutil import parser
-from dateutil.tz import gettz
+from datetime import datetime
 from temporal_graph.base import Preprocessing
 
 class EEDPreprocessing(Preprocessing):
     def __init__(self, input, output, dataset_name) -> None:
         super().__init__(input=input, output=output, dataset_name=dataset_name)
-
-    @staticmethod
-    def split_file(raw):
-        return raw.split('/')[0]
-
-    @staticmethod
-    def extract_to(raw):
-        matches = re.findall(r'([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})', raw)
-        if matches:
-            return [email.strip() for email in matches]
-        else:
-            return None
-
-    @staticmethod
-    def extract_date(raw):
-        match = re.search(r'Date: (.+)', raw)
-        if match:
-            return match.group(1)
-        else:
-            return None
-
-    @staticmethod
-    def to_utc(date):
-        date = parser.parse(date)
-        date_utc = date.astimezone(gettz('UTC'))
-        return date_utc.timestamp()
-
-    @staticmethod
-    def extract_to_org(email):
-        return email.split('@')[-1]
     
     @staticmethod
-    def padding_org(org):
-        if len(org) <= 10:
-            return f"{'!'* (10 - len(org))}{org}"
+    def missing_to_nan(mail_address):
+        if mail_address == "missing":
+            return np.nan
+        elif not(re.findall(r'[\w\.-]+@[\w\.-]+', mail_address)):
+            return np.nan
+        else:
+            return mail_address
+
+    @staticmethod
+    def string_to_timestamp(date_string):
+        return datetime.strptime(date_string, "%Y-%m-%d").timestamp()
+    
+    @staticmethod
+    def re_mail_address(mail_address):
+        return re.findall(r'[\w\.-]+@[\w\.-]+', mail_address)
+    
+    @staticmethod
+    def re_remove_mail_address_in_body(text):
+        return re.sub(r'[\w\.-]+@[\w\.-]+', "", text)
+    
+    @staticmethod
+    def node_feat(mail_address):
+        mail_address = EEDPreprocessing.padding_mail_address(mail_address)
+        return EEDPreprocessing.convert_str2int(mail_address)
+
+    @staticmethod
+    def padding_mail_address(mail_address):
+        mail_address = mail_address.split("@")[1].replace(".", "")
+        min_len = 10
+
+        if len(mail_address) < min_len:
+            mail_address += "!" * (min_len - len(mail_address))
         
-        elif len(org) > 10:
-            return org[:10]
+        elif len(mail_address) > min_len:
+            mail_address = mail_address[:min_len]
+        
+        return mail_address
     
     @staticmethod
     def convert_str2int(in_str: str):
         out = []
         for element in in_str:
             if element.isnumeric():
-                out.append(element)
+                out.append(int(element))
             elif element == "!":
                 out.append(-1)
             else:
                 out.append(ord(element.upper()) - 44 + 9)
         return out
     
+    @staticmethod
+    def body_to_edge_feat(text):
+        special_kw = ["original message from", "forwarded by"]
+        special_kw_ohc = np.eye(len(special_kw))
+        text = text.lower()
+        
+        text = re.sub(r'\s+', ' ', text) # remove multiple spaces
+        text = f"{text} {' !' * 10}" # padding text to 10 words
+        
+        # check if text contains special_kw and return one hot encoded
+        for i, kw in enumerate(special_kw):
+            if kw in text and isinstance(text, str):
+                text = text.replace(kw, "").strip()
+                text = text.split(" ")[:10-len(special_kw)]
+                text = [sum(EEDPreprocessing.convert_str2int(w)) for w in text]
+                return special_kw_ohc[i].tolist() + text
+            
+            elif isinstance(text, str):
+                text = text.strip().split(" ")[:10]
+                text = [sum(EEDPreprocessing.convert_str2int(w)) for w in text]
+                return text
+    
     def processing(self, dataset_name):
-        df_edge_feat = pd.read_csv(f"{self._input_folder(dataset_name)}/emails.csv")
+        df_edge_feat = pd.read_csv(f"{self._input_folder(dataset_name)}/clean_emails.csv")
 
-        df_edge_feat["From"] = df_edge_feat['file'].apply(EEDPreprocessing.split_file)
-        df_edge_feat["To"] = df_edge_feat['message'].apply(EEDPreprocessing.extract_to)
+        df_edge_feat["sender"] = df_edge_feat["sender"].apply(EEDPreprocessing.missing_to_nan)
+        df_edge_feat["recipient"] = df_edge_feat["recipient"].apply(EEDPreprocessing.missing_to_nan)
 
-        df_edge_feat["t"] = df_edge_feat['message'].apply(EEDPreprocessing.extract_date)
-        df_edge_feat["t"] = df_edge_feat["t"].apply(EEDPreprocessing.to_utc)
+        df_edge_feat.dropna(inplace=True)
+        df_edge_feat["t"] = df_edge_feat["date"].apply(EEDPreprocessing.string_to_timestamp)
 
-        # -- Remove self-loop ---------------------------------------------
-        df_edge_feat[["From", "To"]].dropna(inplace=True)
-        df_edge_feat = df_edge_feat.explode("To")
-        duplicate_rows = df_edge_feat[df_edge_feat['From'] == df_edge_feat['To']].index
-        df_edge_feat = df_edge_feat.drop(duplicate_rows)
+        # combine recipient and body
+        df_edge_feat["content"] = df_edge_feat["recipient"] + df_edge_feat["body"]
+        df_edge_feat["recipient_2"] = df_edge_feat["recipient"].apply(EEDPreprocessing.re_mail_address)
+        df_edge_feat["body_2"] = df_edge_feat["body"].apply(EEDPreprocessing.re_remove_mail_address_in_body)
 
-        df_edge_feat.sort_values(by=["t"], inplace=True)
-
-        num_nodes, id_map, src_idx, dst_idx = self._src_dst_to_idx(df_edge_feat["From"], df_edge_feat["To"])
-        df_edge_feat["src"] = df_edge_feat["From"].apply(lambda x: id_map[x])
-        df_edge_feat["dst"] = df_edge_feat["To"].apply(lambda x: id_map[x])
+        df_edge_feat = df_edge_feat.explode("recipient_2")
+        # df_edge_feat.sort_values(by=["date"], inplace=True)
+        num_nodes, id_map, src_idx, dst_idx = self._src_dst_to_idx(df_edge_feat["sender"], df_edge_feat["recipient_2"])
+        df_edge_feat["src"] = df_edge_feat["sender"].apply(lambda x: id_map[x])
+        df_edge_feat["dst"] = df_edge_feat["recipient_2"].apply(lambda x: id_map[x])
 
         # -- node features ------------------------------------------------------------------------------------------------------
-        df_node_feat = pd.DataFrame()
-        _f = pd.DataFrame(df_edge_feat["From"].unique())
-        _t = pd.DataFrame(df_edge_feat["To"].unique())
-
-        df_node_feat["node"] = pd.concat([_f, _t])
-        df_node_feat = df_node_feat.drop_duplicates()
-
-        df_node_feat["idx"] = df_node_feat["node"].apply(lambda x: id_map[x])
         
-        df_node_feat["x"] = df_node_feat["node"].apply(EEDPreprocessing.extract_to_org)
-        df_node_feat["x"] = df_node_feat["x"].apply(EEDPreprocessing.padding_org)
-        df_node_feat["x"] = df_node_feat["x"].apply(EEDPreprocessing.convert_str2int)
+        _src_node_feat = df_edge_feat["sender"].drop_duplicates().to_frame()
+        _src_node_feat = _src_node_feat.rename(columns={"sender": "node"})
+
+        _dst_node_feat = df_edge_feat["recipient_2"].drop_duplicates().to_frame()
+        _dst_node_feat = _dst_node_feat.rename(columns={"recipient_2": "node"})
+
+        df_node_feat = pd.concat([_src_node_feat, _dst_node_feat], axis=0)
+        df_node_feat = df_node_feat.drop_duplicates()
+        
+        df_node_feat["x"] = df_node_feat["node"].apply(EEDPreprocessing.node_feat)
+        # df_node_feat.to_csv(f"{self._output_folder(dataset_name)}/___node_feat.csv", index=False)
+        
+        df_node_feat["idx"] = df_node_feat["node"].apply(lambda x: id_map[x])
 
         df_node_feat = df_node_feat.sort_values(by=["idx"], ascending=True)
 
-        # -- edge features ------------------------------------------------------------------------------------------------------
-        df_edge_feat["msg_src"] = pd.merge(df_edge_feat, df_node_feat, left_on="src", right_on="idx", how="left")["x"]
-        df_edge_feat["msg_dst"] = pd.merge(df_edge_feat, df_node_feat, left_on="dst", right_on="idx", how="left")["x"]
+        # # -- edge features ------------------------------------------------------------------------------------------------------
+        df_edge_feat["msg"] = df_edge_feat["body_2"].apply(EEDPreprocessing.body_to_edge_feat)
 
-        df_edge_feat["msg"] = df_edge_feat["msg_src"] + df_edge_feat["msg_dst"]
         msg = np.array(df_edge_feat['msg'].to_list(), dtype=np.float32)
         msg = msg.astype(float)
 
@@ -114,8 +135,10 @@ class EEDPreprocessing(Preprocessing):
         x = np.array(df_node_feat['x'].to_list(), dtype=np.float32)
         x = x.astype(float)
         return data, x
+
         
 
 if __name__ == '__main__':
     eed = EEDPreprocessing(input="raw", output="data", dataset_name="eed")
+    eed.processing("eed")
     eed.save()
