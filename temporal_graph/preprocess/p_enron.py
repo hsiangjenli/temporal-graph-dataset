@@ -54,7 +54,7 @@ class EEDPreprocessing(Preprocessing):
             if element.isnumeric():
                 out.append(int(element))
             elif element == "!":
-                out.append(-1)
+                out.append(0)
             else:
                 out.append(ord(element.upper()) - 44 + 9)
         return out
