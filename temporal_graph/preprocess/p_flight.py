@@ -18,7 +18,7 @@ class FlightPreprocessing(Preprocessing):
             if element.isnumeric():
                 out.append(element)
             elif element == "!":
-                out.append(-1)
+                out.append(0)
             else:
                 out.append(ord(element.upper()) - 44 + 9)
         # out = np.array(out, dtype=np.float32)
@@ -31,7 +31,7 @@ class FlightPreprocessing(Preprocessing):
             if element.isnumeric():
                 out.append(element)
             elif element == "!":
-                out.append(-1)
+                out.append(0)
             else:
                 out.append(ord(element.upper()) - 44 + 9)
         out = np.array(out, dtype=np.float32)
@@ -68,9 +68,9 @@ class FlightPreprocessing(Preprocessing):
     def convert_continent(i):
         unique_continent = ['OC', 'AF', 'AN', 'EU', 'AS', 'SA']
         if isinstance(i, float):
-            return [-1]
+            return [0]
         else:
-            return [unique_continent.index(i)]
+            return [unique_continent.index(i)+1]
     
     def processing(self, dataset_name):
         df_edge_feat = pd.read_csv(f"{self._input_folder(dataset_name)}/{dataset_name}_edgelist_v2.csv")
