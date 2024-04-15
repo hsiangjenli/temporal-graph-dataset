@@ -3,6 +3,11 @@
     raw = "https://www.kaggle.com/datasets/tarun42/enron-clean/data"
     href = "1Kaeu8SKENMlUkT66qTltmgHirXeXwXIp"
 
+[dblp_v2]
+    name = "dblp_v2"
+    raw = "https://www.kaggle.com/datasets/agungpambudi/research-citation-network-5m-papers?rvi=1"
+    href = "1c3WBzkp7Um3WyKSEtEhsi7SubrMgk4Fl"
+
 [dblp]
     name = "dblp"
     raw = ""
