@@ -90,12 +90,11 @@ class DBLPPreprocessing(Preprocessing):
         df_edge_feat = df_edge_feat[df_edge_feat["num_authors"] <= 10]
 
         # -- node feature
-        df_node_feat = pd.DataFrame(list(df_edge_feat["authors"].explode().to_dict().values()))
-        df_node_feat = df_node_feat.drop_duplicates()
-        df_node_feat["org"] = df_node_feat["org"].apply(DBLPPreprocessing.clean_org)
-        df_node_feat["org"] = df_node_feat["org"].apply(DBLPPreprocessing.padding_org)
-        df_node_feat["org"] = df_node_feat["org"].apply(DBLPPreprocessing.convert_str2int)
-        df_node_feat.drop_duplicates(subset=["id"], inplace=True)
+        # df_node_feat = pd.DataFrame(list(df_edge_feat["authors"].explode().to_dict().values()))
+        # df_node_feat["org"] = df_node_feat["org"].apply(DBLPPreprocessing.clean_org)
+        # df_node_feat["org"] = df_node_feat["org"].apply(DBLPPreprocessing.padding_org)
+        # df_node_feat["org"] = df_node_feat["org"].apply(DBLPPreprocessing.convert_str2int)
+        # df_node_feat.drop_duplicates(subset=["id"], inplace=True)
 
         # -- pair author
         df_edge_feat["author_to_list_dir"] = df_edge_feat["authors"].apply(DBLPPreprocessing.author_to_list_dir)
@@ -122,6 +121,14 @@ class DBLPPreprocessing(Preprocessing):
         ], axis=1
         )
 
+        df_node_feat = pd.concat([df_edge_feat["src"], df_edge_feat["dst"]]).to_frame()
+
+        df_node_feat["id"] = df_node_feat[0].apply(lambda x: x['id'])
+        df_node_feat["org"] = df_node_feat[0].apply(lambda x: x['org'])
+        df_node_feat["org"] = df_node_feat["org"].apply(DBLPPreprocessing.clean_org)
+        df_node_feat["org"] = df_node_feat["org"].apply(DBLPPreprocessing.padding_org)
+        df_node_feat["org"] = df_node_feat["org"].apply(DBLPPreprocessing.convert_str2int)
+    
         df_edge_feat["src"] = df_edge_feat["src"].apply(lambda x: x["id"])
         df_edge_feat["dst"] = df_edge_feat["dst"].apply(lambda x: x["id"])
         
@@ -132,6 +139,8 @@ class DBLPPreprocessing(Preprocessing):
 
         df_node_feat["idx"] = df_node_feat["id"].apply(lambda x: id_map[x])
         df_node_feat = df_node_feat.sort_values(by=["idx"], ascending=True)
+        df_node_feat = df_node_feat.drop_duplicates(subset=["idx"], keep="first")
+        df_node_feat = df_node_feat.reset_index()
 
         x = np.array(df_node_feat['org'].to_list(), dtype=np.float32)
         x = x.astype(float)
