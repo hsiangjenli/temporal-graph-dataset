@@ -1,1 +1,3 @@
-from .tg import *
+from .tg import TemporalGraphDataset
+
+__all__ = ["TemporalGraphDataset"]
