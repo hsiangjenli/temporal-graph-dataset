@@ -13,7 +13,7 @@ print(data)
 print(x)
 print(data[train_mask])
 
-loader = TemporalDataLoader(data, batch_size=100, shuffle=False)
+loader = TemporalDataLoader(data, batch_size=100)
 
 for batch in loader:
 	print(batch)
