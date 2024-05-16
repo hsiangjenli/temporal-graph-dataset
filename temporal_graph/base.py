@@ -41,7 +41,7 @@ class Preprocessing:
 		torch.save(x, self._node_feat_path(self.dataset_name), pickle_protocol=4)
 
 		# -- save the train/val/test split ---------------------------------------------------
-		train_mask, val_mask, test_mask = utils.generate_splits(data)
+		train_mask, val_mask, test_mask = utils.generate_splits(data, val_ratio=0.1, test_ratio=0.6)
 		pickle.dump(train_mask, open(self._mask_path(self.dataset_name, "train"), "wb"))
 		pickle.dump(val_mask, open(self._mask_path(self.dataset_name, "val"), "wb"))
 		pickle.dump(test_mask, open(self._mask_path(self.dataset_name, "test"), "wb"))

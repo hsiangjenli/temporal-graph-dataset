@@ -113,5 +113,5 @@ class FlightPreprocessing(Preprocessing):
 
 
 if __name__ == "__main__":
-	flight = FlightPreprocessing(input="raw", output="data", dataset_name="tgbl-flight")
+	flight = FlightPreprocessing(input="raw", output="data_v3", dataset_name="tgbl-flight")
 	flight.save()

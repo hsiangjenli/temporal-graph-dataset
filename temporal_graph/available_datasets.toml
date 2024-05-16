@@ -1,7 +1,7 @@
 [eed]
     name = "eed"
     raw = "https://www.kaggle.com/datasets/tarun42/enron-clean/data"
-    href = "1Kaeu8SKENMlUkT66qTltmgHirXeXwXIp"
+    href = "1VuZaCAiXWuVP_hK4zgC7jDE1DdVM51fw"
 
 [dblp_v2]
     name = "dblp_v2"
@@ -10,35 +10,10 @@
 
 [dblp]
     name = "dblp"
-    raw = ""
-    href = "1KYP3m6WVo9bb3igcGGZMLOdAokAt67jn"
-
-[dblp_1936-2021]
-    name = "dblp_1936-2021"
-    raw = ""
-    href = "1VGll5VrOIsXSaAzHryQExIpAuH-lk_uq"
-
-[dblp_1936-2022]
-    name = "dblp_1936-2022"
-    raw = ""
-    href = "1VG6ISzZsiUpTLDtSBJZnYRk9o9UHpDsp"
-
-[dblp_1936-2023]
-    name = "dblp_1936-2023"
-    raw = ""
-    href = "1VHyCUrIh1BQpZBUmZC8KgZNnq4XqO4QR"
-
-[dblp_1936-2024]
-    name = "dblp_1936-2024"
-    raw = ""
-    href = "1VJLUgi8_8wexTg4f_rZAaqzp-8ngVbTy"
+    raw = "https://www.kaggle.com/datasets/agungpambudi/research-citation-network-5m-papers?rvi=1"
+    href = "1VtxqwjLBrzCzHT4c2ji6rL47A2FW1sSh"
 
 [tgbl-flight]
     name = "tgbl-flight"
     raw = "TGB"
-    href = "1eJ1LVd-IewkKc5PG-67vRCJlMKTvV9mI"
-
-[tgbl-coin]
-    name = "tgbl-coin"
-    raw = "TGB"
-    href = "1eKa9fD0OvG7cEgheeffy1J1xFFQIGQtN"
+    href = "1W8V1bSR4-xXWXlsIvVki1kX_qSkBL0d7"
