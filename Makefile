@@ -21,5 +21,6 @@ backup:
 	python test_backup.py --input_fold data_v3/dblp --gdrive_path "/Users/hsiangjenli/Google Drive/My Drive/🏫 2022 NTUST/📦 data/pyg/dblp_v3"
 	python test_backup.py --input_fold data_v3/eed --gdrive_path "/Users/hsiangjenli/Google Drive/My Drive/🏫 2022 NTUST/📦 data/pyg/eed_v3"
 	python test_backup.py --input_fold data_v3/tgbl-flight --gdrive_path "/Users/hsiangjenli/Google Drive/My Drive/🏫 2022 NTUST/📦 data/pyg/tgbl-flight_v3"
+	python test_backup.py --input_fold data_v3/GDELTLite --gdrive_path "/Users/hsiangjenli/Google Drive/My Drive/🏫 2022 NTUST/📦 data/pyg/GDELTLite"
 
 all: process backup

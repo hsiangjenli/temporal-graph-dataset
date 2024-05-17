@@ -25,6 +25,10 @@ class EEDPreprocessing(Preprocessing):
 	@staticmethod
 	def re_mail_address(mail_address):
 		return re.findall(r"[\w\.-]+@[\w\.-]+", mail_address)
+		# try:
+		# 	return [re.sub(r"[\w\.-]+@[\w\.-]+", "", mail_address)[0]]
+		# except IndexError:
+		# 	return []
 
 	@staticmethod
 	def re_remove_mail_address_in_body(text):
@@ -85,6 +89,11 @@ class EEDPreprocessing(Preprocessing):
 	def processing(self, dataset_name):
 		df_edge_feat = pd.read_csv(f"{self._input_folder(dataset_name)}/clean_emails.csv")
 
+		# -- edge features ------------------------------------------------------------------------------------------------------
+		# remove the rows if body contains kw ["original message from", "forwarded by"]
+		for kw in ["original message from", "forwarded by"]:
+			df_edge_feat = df_edge_feat[~df_edge_feat["body"].str.contains(kw)]
+
 		df_edge_feat["sender"] = df_edge_feat["sender"].apply(EEDPreprocessing.missing_to_nan)
 		df_edge_feat["recipient"] = df_edge_feat["recipient"].apply(EEDPreprocessing.missing_to_nan)
 
@@ -122,6 +131,7 @@ class EEDPreprocessing(Preprocessing):
 
 		# # -- edge features ------------------------------------------------------------------------------------------------------
 		df_edge_feat["msg"] = df_edge_feat["body_2"].apply(EEDPreprocessing.body_to_edge_feat)
+		df_edge_feat = df_edge_feat.sort_values(by=["t"], ascending=True)
 
 		msg = np.array(df_edge_feat["msg"].to_list(), dtype=np.float32)
 		msg = msg.astype(float)

@@ -17,3 +17,8 @@
     name = "tgbl-flight"
     raw = "TGB"
     href = "1W8V1bSR4-xXWXlsIvVki1kX_qSkBL0d7"
+
+[pyg-GDELTLite]
+    name = "GDELTLite"
+    raw = "..."
+    href = "1jqAqFKVwY8u-LMOoCDrnndsmrhd94YX6"
