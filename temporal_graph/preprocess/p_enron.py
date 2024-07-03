@@ -1,7 +1,6 @@
 import re
 import pandas as pd
 import numpy as np
-from datetime import datetime
 from temporal_graph.base import Preprocessing
 
 
@@ -66,7 +65,6 @@ class EEDPreprocessing(Preprocessing):
 
 	@staticmethod
 	def body_to_edge_feat(text):
-
 		text = text.lower()
 
 		text = re.sub(r"\s+", " ", text)  # remove multiple spaces

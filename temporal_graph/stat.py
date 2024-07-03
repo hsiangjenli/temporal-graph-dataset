@@ -1,5 +1,4 @@
 from torch_geometric.data import TemporalData
-from torch_geometric.loader import TemporalDataLoader
 import tqdm
 import torch
 
@@ -47,38 +46,27 @@ class TemporalGraphInfo:
 		report_dict = {
 			"Number of Nodes ($N$)": self.num_nodes,
 			"Dimensionality of Node Features ($d_{v}$)": self.num_node_features,
-
 			"Number of Edges ($E$)": self.num_edges,
 			"Number of Unique Pairs of Vertices": self.num_unique_edges,
 			"Dimensionality of Node Features ($d_{e}$)": self.num_edge_features,
-			
 			"Number of Unique Time Steps": self.unique_time_steps,
-
 			"Number of inductive links": self.inductive_links,
 			"Inductive links (\%)": self.inductive_links_pct,
 			"Number of transductive links": self.tranductive_links,
 			"Transductive links (\%)": self.tranductive_links_pct,
-
-			# "average in degree": self.average_in_degree,
-			# "average out degree": self.average_out_degree,
-			# "std in degree": self.std_in_degree,
-			# "std out degree": self.std_out_degree,
-			# "max in degree": self.max_in_degree,
-			# "max out degree": self.max_out_degree,
-			# "min in degree": self.min_in_degree,
-			# "min out degree": self.min_out_degree,
 		}
 
 		if to_frame or to_latex:
 			import pandas as pd
+
 			df = pd.DataFrame(report_dict, index=[name]).T
-			
+
 			def float_or_int(x):
 				if x.is_integer():
 					return f"{int(x):,}"
 				else:
 					return f"{x:.2f}"
-			
+
 			df = df.applymap(float_or_int)
 
 			if to_frame:
@@ -253,8 +241,8 @@ class TemporalGraphInfo:
 	def tranductive_links_pct(self):
 		return self.tranductive_links / sum(self.test_mask)
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
 	from temporal_graph import TemporalGraphDataset
 	import pandas as pd
 
@@ -268,8 +256,6 @@ if __name__ == "__main__":
 		tgi = TemporalGraphInfo(x, data, train_mask, val_mask, test_mask, batch_size)
 		report = tgi.report(to_frame=True, name=d_name.upper())
 		reports.append(report)
-	
+
 	df = pd.concat(reports, axis=1)
 	print(df.to_latex(escape=False))
-
-	# print(tgi.report(to_latex=True, name="GDELTLite"))
