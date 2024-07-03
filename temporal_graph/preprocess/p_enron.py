@@ -20,7 +20,7 @@ class EEDPreprocessing(Preprocessing):
 
 	@staticmethod
 	def string_to_timestamp(date_string):
-		return datetime.strptime(date_string, "%Y-%m-%d").timestamp()
+		return date_string.to_pydatetime().timestamp()
 
 	@staticmethod
 	def re_mail_address(mail_address):
@@ -66,28 +66,20 @@ class EEDPreprocessing(Preprocessing):
 
 	@staticmethod
 	def body_to_edge_feat(text):
-		special_kw = ["original message from", "forwarded by"]
-		special_kw_ohc = np.eye(len(special_kw))
+
 		text = text.lower()
 
 		text = re.sub(r"\s+", " ", text)  # remove multiple spaces
-		text = f"{text} {' !' * 10}"  # padding text to 10 words
+		text = f"{text} {' !' * 30}"  # padding text to 10 words
 
-		# check if text contains special_kw and return one hot encoded
-		for i, kw in enumerate(special_kw):
-			if kw in text and isinstance(text, str):
-				text = text.replace(kw, "").strip()
-				text = text.split(" ")[: 10 - len(special_kw)]
-				text = [sum(EEDPreprocessing.convert_str2int(w)) for w in text]
-				return special_kw_ohc[i].tolist() + text
-
-			elif isinstance(text, str):
-				text = text.strip().split(" ")[:10]
-				text = [sum(EEDPreprocessing.convert_str2int(w)) for w in text]
-				return text
+		text = text.strip().split(" ")[:30]
+		text = [sum(EEDPreprocessing.convert_str2int(w)) for w in text]
+		return text
 
 	def processing(self, dataset_name):
 		df_edge_feat = pd.read_csv(f"{self._input_folder(dataset_name)}/clean_emails.csv")
+		df_edge_feat["date"] = pd.to_datetime(df_edge_feat["date"])
+		df_edge_feat = df_edge_feat[df_edge_feat["date"] < "2003-01-01"]
 
 		# -- edge features ------------------------------------------------------------------------------------------------------
 		# remove the rows if body contains kw ["original message from", "forwarded by"]
@@ -105,8 +97,8 @@ class EEDPreprocessing(Preprocessing):
 		df_edge_feat["recipient_2"] = df_edge_feat["recipient"].apply(EEDPreprocessing.re_mail_address)
 		df_edge_feat["body_2"] = df_edge_feat["body"].apply(EEDPreprocessing.re_remove_mail_address_in_body)
 
-		df_edge_feat = df_edge_feat.explode("recipient_2")
-		# df_edge_feat.sort_values(by=["date"], inplace=True)
+		# df_edge_feat = df_edge_feat.explode("recipient_2") # <v6
+		df_edge_feat["recipient_2"] = df_edge_feat["recipient_2"].apply(lambda x: x[0])
 		num_nodes, id_map, src_idx, dst_idx = self._src_dst_to_idx(df_edge_feat["sender"], df_edge_feat["recipient_2"])
 		df_edge_feat["src"] = df_edge_feat["sender"].apply(lambda x: id_map[x])
 		df_edge_feat["dst"] = df_edge_feat["recipient_2"].apply(lambda x: id_map[x])
@@ -144,6 +136,6 @@ class EEDPreprocessing(Preprocessing):
 
 
 if __name__ == "__main__":
-	eed = EEDPreprocessing(input="raw", output="data_v3", dataset_name="eed")
+	eed = EEDPreprocessing(input="raw", output="data", dataset_name="eed")
 	eed.processing("eed")
 	eed.save()

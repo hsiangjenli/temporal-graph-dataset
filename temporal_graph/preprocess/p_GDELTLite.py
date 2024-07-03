@@ -16,6 +16,6 @@ class GDELTLitePreprocessing(Preprocessing):
         return data, x
     
 if __name__ == "__main__":
-    gdel = GDELTLitePreprocessing(input="raw", output="data_v3", dataset_name="GDELTLite")
+    gdel = GDELTLitePreprocessing(input="raw", output="data", dataset_name="GDELTLite")
     gdel.processing("GDELTLite")
     gdel.save()
