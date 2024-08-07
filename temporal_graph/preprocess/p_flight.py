@@ -103,6 +103,8 @@ class FlightPreprocessing(Preprocessing):
 		df_edge_feat["typecode"] = df_edge_feat["typecode"].apply(FlightPreprocessing.padding_typecode)
 		df_edge_feat["msg"] = df_edge_feat["callsign"] + df_edge_feat["typecode"]
 		df_edge_feat["msg"] = df_edge_feat["msg"].apply(FlightPreprocessing.convert_str2int)
+		df_edge_feat["day"] = pd.to_datetime(df_edge_feat["day"])
+		df_edge_feat["timestamp"] = df_edge_feat["day"].astype(int) // 10**9
 
 		msg = np.array(df_edge_feat["msg"].to_list(), dtype=np.float32)
 		msg = msg.astype(float)
