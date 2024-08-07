@@ -144,5 +144,5 @@ class DBLPPreprocessing(Preprocessing):
 
 
 if __name__ == "__main__":
-	dblp = DBLPPreprocessing(input="raw", output="data", dataset_name="dblp")
+	dblp = DBLPPreprocessing(input="raw", output="data_strict", dataset_name="dblp")
 	dblp.save()

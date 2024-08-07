@@ -134,6 +134,6 @@ class EEDPreprocessing(Preprocessing):
 
 
 if __name__ == "__main__":
-	eed = EEDPreprocessing(input="raw", output="data", dataset_name="eed")
+	eed = EEDPreprocessing(input="raw", output="data_strict", dataset_name="eed")
 	eed.processing("eed")
 	eed.save()
