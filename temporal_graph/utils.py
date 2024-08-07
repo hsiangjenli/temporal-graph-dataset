@@ -9,4 +9,4 @@ def generate_splits(data: TemporalData, val_ratio: float = 0.15, test_ratio: flo
 	train_mask[:10000] = True
 	val_mask[10000:11000] = True
 	test_mask[11000:] = True
-	return train_mask, val_mask, test_mask
+	return train_mask.tolist(), val_mask.tolist(), test_mask.tolist()
