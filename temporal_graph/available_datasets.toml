@@ -1,19 +1,19 @@
 [eed]
     name = "eed"
     raw = "https://www.kaggle.com/datasets/tarun42/enron-clean/data"
-    href = "1VuZaCAiXWuVP_hK4zgC7jDE1DdVM51fw"
+    href = "1i1Ko1bK9HhV8QRIaDkTq3CTmKA6tbbVO"
 
 [dblp]
     name = "dblp"
     raw = "https://www.kaggle.com/datasets/agungpambudi/research-citation-network-5m-papers?rvi=1"
-    href = "1VtxqwjLBrzCzHT4c2ji6rL47A2FW1sSh"
+    href = "1idEBmRa5w1BGxEfq1zqjUiQ3Nhc_RboX"
 
 [tgbl-flight]
     name = "tgbl-flight"
     raw = "https://object-arbutus.cloud.computecanada.ca/tgb/tgbl-flight-v2.zip"
-    href = "1W8V1bSR4-xXWXlsIvVki1kX_qSkBL0d7"
+    href = "1ibtYQduhMoFDNORWC016TLKG44KxcWPB"
 
 [pyg-GDELTLite]
     name = "GDELTLite"
     raw = "https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.GDELTLite.html?highlight=gde#torch_geometric.datasets.GDELTLite"
-    href = "1jqAqFKVwY8u-LMOoCDrnndsmrhd94YX6"
+    href = "1i21pHHLaoyilvydO-VbIk0yXs5x4XR3Y"
