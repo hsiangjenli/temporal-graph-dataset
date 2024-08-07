@@ -3,11 +3,6 @@
     raw = "https://www.kaggle.com/datasets/tarun42/enron-clean/data"
     href = "1VuZaCAiXWuVP_hK4zgC7jDE1DdVM51fw"
 
-[dblp_v2]
-    name = "dblp_v2"
-    raw = "https://www.kaggle.com/datasets/agungpambudi/research-citation-network-5m-papers?rvi=1"
-    href = "1c3WBzkp7Um3WyKSEtEhsi7SubrMgk4Fl"
-
 [dblp]
     name = "dblp"
     raw = "https://www.kaggle.com/datasets/agungpambudi/research-citation-network-5m-papers?rvi=1"
@@ -15,10 +10,10 @@
 
 [tgbl-flight]
     name = "tgbl-flight"
-    raw = "TGB"
+    raw = "https://object-arbutus.cloud.computecanada.ca/tgb/tgbl-flight-v2.zip"
     href = "1W8V1bSR4-xXWXlsIvVki1kX_qSkBL0d7"
 
 [pyg-GDELTLite]
     name = "GDELTLite"
-    raw = "..."
+    raw = "https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.GDELTLite.html?highlight=gde#torch_geometric.datasets.GDELTLite"
     href = "1jqAqFKVwY8u-LMOoCDrnndsmrhd94YX6"
