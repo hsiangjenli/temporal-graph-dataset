@@ -13,7 +13,7 @@
     raw = "https://object-arbutus.cloud.computecanada.ca/tgb/tgbl-flight-v2.zip"
     href = "1ibtYQduhMoFDNORWC016TLKG44KxcWPB"
 
-[pyg-GDELTLite]
+[GDELTLite]
     name = "GDELTLite"
     raw = "https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.GDELTLite.html?highlight=gde#torch_geometric.datasets.GDELTLite"
     href = "1i21pHHLaoyilvydO-VbIk0yXs5x4XR3Y"
