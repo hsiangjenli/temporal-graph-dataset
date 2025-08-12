@@ -48,8 +48,27 @@ class TemporalGraphDataset:
 		else:
 			return self._root
 
+	def _resolve_dataset_key(self, dataset_name: str) -> str:
+		"""Resolve a dataset name to its corresponding key in available_datasets_dict.
+
+		This handles cases where the display name differs from the dictionary key.
+		"""
+		# First check if the dataset_name is directly a key
+		if dataset_name in self.available_datasets_dict:
+			return dataset_name
+
+		# Otherwise, look for a key whose 'name' field matches the dataset_name
+		for key, value in self.available_datasets_dict.items():
+			if value.get("name") == dataset_name:
+				return key
+
+		# If no match found, raise an informative error
+		available_names = [self.available_datasets_dict[k]["name"] for k in self.available_datasets_dict]
+		raise KeyError(f"Dataset '{dataset_name}' not found. Available datasets: {available_names}")
+
 	def _url(self, dataset_name) -> str:
-		return self.available_datasets_dict[dataset_name]["href"]
+		key = self._resolve_dataset_key(dataset_name)
+		return self.available_datasets_dict[key]["href"]
 
 	def _data_folder(self, dataset_name) -> str:
 		return os.path.join(self.root, dataset_name)
@@ -58,7 +77,8 @@ class TemporalGraphDataset:
 		# -- Create the directory ----------------------------------------------
 		os.makedirs(self.root, exist_ok=True)
 
-		gdrive_id = self.available_datasets_dict[dataset_name]["href"]
+		key = self._resolve_dataset_key(dataset_name)
+		gdrive_id = self.available_datasets_dict[key]["href"]
 
 		print(f"Downloading {dataset_name} from Google Drive...")
 		gdown.download(id=gdrive_id, output=f"{self.root}/{dataset_name}.zip", quiet=False)
