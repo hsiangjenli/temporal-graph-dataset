@@ -17,8 +17,8 @@ class TemporalGraphDataset:
 		if not (os.path.exists(self._data_folder(dataset_name))):
 			self.download(dataset_name)
 
-		data = torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt")
-		x = torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}_node_feat.pt")
+		data = torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}.pt", weights_only=False)
+		x = torch.load(f"{self._data_folder(dataset_name)}/pyg_{dataset_name}_node_feat.pt", weights_only=False)
 
 		train_mask = pickle.load(open(f"{self._data_folder(dataset_name)}/mask_train.pkl", "rb"))
 		val_mask = pickle.load(open(f"{self._data_folder(dataset_name)}/mask_val.pkl", "rb"))
