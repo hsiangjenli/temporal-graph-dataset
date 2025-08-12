@@ -8,7 +8,7 @@ for dataset_name in tgd.available_datasets:
 	tgd.download(dataset_name)
 	print(f"Downloaded {dataset_name}!")
 
-data, x, train_mask, val_mask, test_mask = tgd("pseudo_data")
+data, x, train_mask, val_mask, test_mask = tgd("eed")
 print(data)
 print(x)
 print(data[train_mask])
