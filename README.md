@@ -13,9 +13,7 @@ A collection of temporal graph datasets from [***Towards Better Evaluation for D
 
 ```shell
 sudo apt update
-sudo apt install clang
-sudo apt install build-essential
-sudo apt install python3-dev
+sudo apt install clang build-essential python3-dev
 ```
 
 ```python
