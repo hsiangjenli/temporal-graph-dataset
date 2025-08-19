@@ -11,7 +11,12 @@ A collection of temporal graph datasets from [***Towards Better Evaluation for D
 
 ## Installation
 
+```shell
+sudo apt update
+sudo apt install clang build-essential python3-dev
 ```
+
+```python
 pip install git+https://github.com/hsiangjenli/temporal-graph-dataset.git
 ```
 
